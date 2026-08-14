@@ -1,5 +1,5 @@
 <template>
-  <CarbonPageShell page-title="碳目标管理">
+  <CarbonPageShell page-title="碳目标管理" show-report-toolbar>
     <div class="carbon-grid-3 carbon-mb-12">
       <div v-for="item in targetKpis" :key="item.label" class="carbon-card kpi-card">
         <div class="kpi-label">{{ item.label }}</div>

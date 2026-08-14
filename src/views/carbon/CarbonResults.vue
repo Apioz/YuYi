@@ -1,5 +1,5 @@
 <template>
-  <CarbonPageShell page-title="核算结果">
+  <CarbonPageShell page-title="核算结果" show-report-toolbar>
     <div class="steps-row carbon-mb-12">
       <div v-for="step in accountingSteps" :key="step.step" class="step-item">
         <div class="step-num" :style="{ background: step.color }">{{ step.step }}</div>

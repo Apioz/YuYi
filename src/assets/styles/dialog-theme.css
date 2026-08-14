@@ -1,0 +1,356 @@
+/**
+ * 禹翼平台 — 全局弹窗主题
+ * 统一 el-dialog / el-message-box 视觉风格
+ */
+
+:root {
+  --yy-dialog-radius: 10px;
+  --yy-dialog-shadow: 0 16px 48px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.06);
+  --yy-dialog-header-bg: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+  --yy-dialog-footer-bg: #fafbfc;
+}
+
+/* ── 遮罩层 ── */
+.el-overlay {
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Dialog 容器 ── */
+.el-dialog {
+  --el-dialog-border-radius: var(--yy-dialog-radius);
+  --el-dialog-padding-primary: 0;
+  --el-dialog-box-shadow: var(--yy-dialog-shadow);
+  border-radius: var(--yy-dialog-radius);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0;
+}
+
+.el-dialog.is-align-center {
+  margin: auto;
+}
+
+/* ── 标题栏 ── */
+.el-dialog__header {
+  position: relative;
+  padding: 16px 52px 16px 24px;
+  margin: 0;
+  border-bottom: 1px solid var(--yy-border);
+  background: var(--yy-dialog-header-bg);
+}
+
+.el-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--yy-text-primary);
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+.el-dialog__headerbtn {
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.el-dialog__headerbtn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  color: var(--yy-text-secondary);
+  font-size: 16px;
+}
+
+.el-dialog__headerbtn:hover .el-dialog__close {
+  color: var(--yy-text-primary);
+}
+
+/* ── 内容区 ── */
+.el-dialog__body {
+  padding: 20px 24px;
+  max-height: min(calc(100vh - 200px), 680px);
+  overflow-y: auto;
+  color: var(--yy-text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.yy-dialog--flush .el-dialog__body,
+.activity-record-dialog .el-dialog__body {
+  padding: 0;
+  max-height: min(calc(100vh - 140px), 780px);
+}
+
+/* ── 底部操作栏 ── */
+.el-dialog__footer {
+  padding: 12px 24px;
+  border-top: 1px solid var(--yy-border);
+  background: var(--yy-dialog-footer-bg);
+}
+
+.el-dialog__footer .el-button {
+  min-width: 72px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.el-dialog__footer .el-button + .el-button {
+  margin-left: 10px;
+}
+
+/* ── 弹窗内表单 ── */
+.el-dialog .el-form-item {
+  margin-bottom: 16px;
+}
+
+.el-dialog .el-form-item__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--yy-text-secondary);
+  line-height: 1.4;
+  padding-bottom: 6px;
+}
+
+.el-dialog .el-input__wrapper,
+.el-dialog .el-textarea__inner,
+.el-dialog .el-select__wrapper {
+  border-radius: 6px;
+}
+
+.el-dialog .el-form-item:last-child {
+  margin-bottom: 0;
+}
+
+/* ── 弹窗内提示条 ── */
+.el-dialog .import-tip,
+.el-dialog .dialog-tip {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--yy-text-secondary);
+  background: #f6f8fa;
+  border: 1px solid var(--yy-border);
+  border-left: 3px solid var(--yy-primary);
+  border-radius: 6px;
+}
+
+.el-dialog .import-tip strong,
+.el-dialog .dialog-tip strong {
+  color: var(--yy-text-primary);
+  font-weight: 600;
+}
+
+/* ── 弹窗内上传区 ── */
+.el-dialog .el-upload-dragger {
+  border-radius: 8px;
+  border: 1px dashed #d0d7de;
+  background: #fafbfc;
+  padding: 28px 20px;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.el-dialog .el-upload-dragger:hover {
+  border-color: var(--yy-primary);
+  background: var(--el-color-primary-light-9);
+  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.08);
+}
+
+.el-dialog .upload-inner {
+  color: var(--yy-text-secondary);
+}
+
+.el-dialog .upload-inner p {
+  margin: 0;
+}
+
+.el-dialog .upload-sub {
+  font-size: 12px;
+  color: var(--yy-text-placeholder);
+  margin-top: 6px;
+}
+
+/* ── 弹窗内预览区 ── */
+.el-dialog .import-preview {
+  margin-top: 16px;
+  border: 1px solid var(--yy-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.el-dialog .preview-title {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fafbfc;
+  border-bottom: 1px solid var(--yy-border);
+  margin-bottom: 0;
+}
+
+.el-dialog .import-preview .carbon-table {
+  margin: 0;
+}
+
+.el-dialog .import-preview .carbon-table th {
+  background: #fafafa;
+}
+
+.el-dialog .import-errors,
+.el-dialog .import-error {
+  margin-top: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #cf1322;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+}
+
+/* ── 弹窗内详情区块 ── */
+.el-dialog .detail-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--yy-border);
+}
+
+.el-dialog .detail-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.el-dialog .detail-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--yy-text-primary);
+  padding-left: 10px;
+  border-left: 3px solid var(--yy-primary);
+}
+
+.el-dialog .detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+}
+
+.el-dialog .detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.el-dialog .detail-label {
+  color: var(--yy-text-placeholder);
+  font-size: 12px;
+}
+
+.el-dialog .factor-card {
+  padding: 14px 16px;
+  background: #f6f8fa;
+  border: 1px solid var(--yy-border);
+  border-radius: 8px;
+}
+
+/* ── 弹窗内表格 ── */
+.el-dialog .carbon-table th {
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+.el-dialog .carbon-table td {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+/* ── MessageBox 确认框 ── */
+.el-message-box {
+  --el-messagebox-border-radius: var(--yy-dialog-radius);
+  border-radius: var(--yy-dialog-radius);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--yy-dialog-shadow);
+}
+
+.el-message-box__header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--yy-border);
+  background: var(--yy-dialog-header-bg);
+}
+
+.el-message-box__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--yy-text-primary);
+}
+
+.el-message-box__headerbtn {
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.el-message-box__headerbtn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.el-message-box__content {
+  padding: 20px 24px;
+  font-size: 14px;
+  color: var(--yy-text-secondary);
+  line-height: 1.6;
+}
+
+.el-message-box__btns {
+  padding: 12px 24px;
+  border-top: 1px solid var(--yy-border);
+  background: var(--yy-dialog-footer-bg);
+}
+
+.el-message-box__btns .el-button {
+  min-width: 72px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.el-message-box__status {
+  font-size: 22px !important;
+}
+
+.el-message-box__status + .el-message-box__message {
+  padding-left: 36px;
+}
+
+.el-dialog .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+/* ── 滚动条 ── */
+.el-dialog__body::-webkit-scrollbar,
+.el-message-box__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.el-dialog__body::-webkit-scrollbar-thumb,
+.el-message-box__content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.el-dialog__body::-webkit-scrollbar-thumb:hover,
+.el-message-box__content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}

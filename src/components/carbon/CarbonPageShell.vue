@@ -8,7 +8,7 @@
         <span>/</span>
         <span class="is-current">{{ pageTitle }}</span>
       </nav>
-      <div class="carbon-toolbar-actions">
+      <div v-if="showReportToolbar" class="carbon-toolbar-actions">
         <el-select v-model="year" size="default" style="width: 120px">
           <el-option label="2024年度" value="2024" />
           <el-option label="2023年度" value="2023" />
@@ -26,7 +26,8 @@
 import { ref } from 'vue'
 
 defineProps({
-  pageTitle: { type: String, required: true }
+  pageTitle: { type: String, required: true },
+  showReportToolbar: { type: Boolean, default: false }
 })
 
 const year = ref('2024')

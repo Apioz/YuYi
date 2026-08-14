@@ -46,7 +46,7 @@
               style="width: 260px"
             />
             <el-button type="primary" @click="applyFilters">查询</el-button>
-            <el-button @click="resetFilters">重置</el-button>
+            <el-button @click="resetFilters">清空</el-button>
           </div>
 
           <div v-if="filtersApplied && applied.changeDateRange?.length" class="filter-tip">
@@ -114,6 +114,8 @@
       v-model="formDialogVisible"
       :title="formMode === 'create' ? '新增排放因子' : '编辑排放因子'"
       width="560px"
+      align-center
+      class="yy-dialog"
       destroy-on-close
       @closed="resetForm"
     >
@@ -148,7 +150,15 @@
     </el-dialog>
 
     <!-- 导入 -->
-    <el-dialog v-model="importDialogVisible" title="导入排放因子" width="640px" destroy-on-close @closed="resetImport">
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入排放因子"
+      width="640px"
+      align-center
+      class="yy-dialog"
+      destroy-on-close
+      @closed="resetImport"
+    >
       <div class="import-tip">
         导入数据将添加到当前分类「{{ activeCategoryLabel }}」，请使用 CSV 格式。
         <span class="carbon-link" @click="downloadTemplate">下载导入模板</span>
@@ -201,6 +211,7 @@
       :title="historyDialogTitle"
       width="680px"
       align-center
+      class="yy-dialog"
       destroy-on-close
     >
       <div v-if="activeFactor" class="history-dialog">
@@ -635,8 +646,7 @@ function handleExport() {
 .toolbar-right { display: flex; gap: 8px; }
 
 .filter-bar {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-  padding: 12px; background: #fafafa; border-radius: 4px; margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .filter-tip {
@@ -659,7 +669,7 @@ function handleExport() {
 .preview-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 .import-error { margin-top: 12px; color: #ff4d4f; font-size: 13px; }
 
-.history-dialog { padding: 0 4px; max-height: 60vh; overflow-y: auto; }
+.history-dialog { padding: 0; }
 .factor-summary { padding: 12px 16px; margin-bottom: 16px; }
 .summary-row {
   display: flex; align-items: center; justify-content: space-between;

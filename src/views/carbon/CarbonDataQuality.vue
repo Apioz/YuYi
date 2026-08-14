@@ -1,5 +1,5 @@
 <template>
-  <CarbonPageShell page-title="数据质量">
+  <CarbonPageShell page-title="数据质量" show-report-toolbar>
     <div class="carbon-grid-4 carbon-mb-12">
       <div v-for="item in qualityKpis" :key="item.label" class="carbon-card kpi-card">
         <div class="kpi-label">{{ item.label }}</div>
@@ -49,14 +49,25 @@
           <span class="toolbar-title">数据质量明细</span>
           <span class="toolbar-sub">核算期：2024年度</span>
         </div>
-        <div class="toolbar-right">
-          <el-select placeholder="全部质量等级" style="width: 130px">
-            <el-option label="全部质量等级" value="" />
-            <el-option label="实测" value="实测" />
-            <el-option label="统计" value="统计" />
-            <el-option label="估算" value="估算" />
-          </el-select>
-        </div>
+      </div>
+      <div class="filter-bar">
+        <el-input v-model="filters.source" placeholder="排放源" clearable style="width: 140px" />
+        <el-select v-model="filters.quality" placeholder="质量等级" clearable style="width: 120px">
+          <el-option label="实测" value="实测" />
+          <el-option label="统计" value="统计" />
+          <el-option label="估算" value="估算" />
+        </el-select>
+        <el-select v-model="filters.method" placeholder="采集方式" clearable style="width: 120px">
+          <el-option label="自动采集" value="自动采集" />
+          <el-option label="系统对接" value="系统对接" />
+          <el-option label="手动录入" value="手动录入" />
+        </el-select>
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 100px">
+          <el-option label="正常" value="正常" />
+          <el-option label="待审核" value="待审核" />
+        </el-select>
+        <el-button type="primary" @click="applyFilters">搜索</el-button>
+        <el-button @click="resetFilters">清空</el-button>
       </div>
       <table class="carbon-table">
         <thead>
@@ -70,7 +81,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in qualityDetails" :key="`${row.source}-${row.item}`">
+          <tr v-for="row in displayedDetails" :key="`${row.source}-${row.item}`">
             <td>{{ row.source }}</td>
             <td>{{ row.item }}</td>
             <td><CarbonQualityTag :label="row.quality" /></td>
@@ -89,8 +100,21 @@
 </template>
 
 <script setup>
+import { computed, reactive } from 'vue'
 import CarbonPageShell from '@/components/carbon/CarbonPageShell.vue'
 import CarbonQualityTag from '@/components/carbon/CarbonQualityTag.vue'
+
+const filters = reactive({ source: '', quality: '', method: '', status: '' })
+const applied = reactive({ source: '', quality: '', method: '', status: '' })
+
+function applyFilters() {
+  Object.assign(applied, { ...filters })
+}
+
+function resetFilters() {
+  Object.keys(filters).forEach((key) => { filters[key] = '' })
+  Object.keys(applied).forEach((key) => { applied[key] = '' })
+}
 
 const qualityKpis = [
   { label: '数据完整度', value: '92.5', unit: '%', trend: '↑ 4.2%' },
@@ -118,6 +142,16 @@ const qualityDetails = [
   { source: '厂内运输车队', item: '柴油消耗量', quality: '统计', method: '手动录入', checked: '2024-12-29 14:30', status: '正常' },
   { source: '全体员工', item: '员工通勤里程', quality: '估算', method: '手动录入', checked: '2024-12-28 10:15', status: '待审核' }
 ]
+
+const displayedDetails = computed(() =>
+  qualityDetails.filter((row) => {
+    if (applied.source.trim() && !row.source.includes(applied.source.trim())) return false
+    if (applied.quality && row.quality !== applied.quality) return false
+    if (applied.method && row.method !== applied.method) return false
+    if (applied.status && row.status !== applied.status) return false
+    return true
+  })
+)
 </script>
 
 <style scoped>

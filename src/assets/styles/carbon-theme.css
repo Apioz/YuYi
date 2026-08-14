@@ -81,6 +81,19 @@
   background: #fafafa;
 }
 
+/* 筛选栏 — 与列表第一列左对齐 */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.filter-bar .el-button + .el-button {
+  margin-left: 0;
+}
+
 /* 列表操作区：左侧新增 + 右侧导入导出 */
 .list-toolbar-row {
   display: flex;

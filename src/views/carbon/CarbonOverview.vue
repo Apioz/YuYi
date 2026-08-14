@@ -1,5 +1,5 @@
 <template>
-  <CarbonPageShell page-title="碳核算总览">
+  <CarbonPageShell page-title="碳核算总览" show-report-toolbar>
     <div class="carbon-card period-bar carbon-mb-12">
       <div class="period-left">
         <span class="period-label">统计周期</span>

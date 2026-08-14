@@ -4,6 +4,7 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import 'element-plus/dist/index.css'
 import '@/assets/styles/yuyi-theme.css'
 import '@/assets/styles/carbon-theme.css'
+import '@/assets/styles/dialog-theme.css'
 
 import App from './App.vue'
 import router from './router'

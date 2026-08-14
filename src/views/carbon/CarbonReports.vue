@@ -1,19 +1,25 @@
 <template>
-  <CarbonPageShell page-title="碳报告中心">
+  <CarbonPageShell page-title="碳报告中心" show-report-toolbar>
     <div class="carbon-card carbon-mb-12">
       <div class="toolbar">
         <div class="toolbar-left">
           <span class="toolbar-title">报告列表</span>
-          <span class="toolbar-sub">共 {{ reports.length }} 份报告</span>
+          <span class="toolbar-sub">共 {{ displayedReports.length }} 份报告</span>
         </div>
-        <div class="toolbar-right">
-          <el-select v-model="reportType" placeholder="报告类型" style="width: 140px">
-            <el-option label="全部类型" value="" />
-            <el-option label="年度核算报告" value="year" />
-            <el-option label="月度摘要" value="month" />
-          </el-select>
-          <el-button type="primary">生成报告</el-button>
-        </div>
+      </div>
+      <div class="filter-bar">
+        <el-input v-model="filters.name" placeholder="报告名称" clearable style="width: 180px" />
+        <el-select v-model="filters.type" placeholder="报告类型" clearable style="width: 140px">
+          <el-option label="年度核算报告" value="年度核算报告" />
+          <el-option label="月度摘要" value="月度摘要" />
+        </el-select>
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 110px">
+          <el-option label="已发布" value="已发布" />
+          <el-option label="草稿" value="草稿" />
+        </el-select>
+        <el-button type="primary" @click="applyFilters">搜索</el-button>
+        <el-button @click="resetFilters">清空</el-button>
+        <el-button type="primary">生成报告</el-button>
       </div>
       <table class="carbon-table">
         <thead>
@@ -28,7 +34,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in reports" :key="row.name">
+          <tr v-for="row in displayedReports" :key="row.name">
             <td>{{ row.name }}</td>
             <td>{{ row.type }}</td>
             <td>{{ row.period }}</td>
@@ -62,10 +68,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, reactive } from 'vue'
 import CarbonPageShell from '@/components/carbon/CarbonPageShell.vue'
 
-const reportType = ref('')
+const filters = reactive({ name: '', type: '', status: '' })
+const applied = reactive({ name: '', type: '', status: '' })
 
 const reports = [
   { name: '2024年度碳排放核算报告', type: '年度核算报告', period: '2024年度', emission: '19,605 tCO₂e', created: '2024-12-31 23:59', status: '已发布' },
@@ -73,6 +80,24 @@ const reports = [
   { name: '2024年11月碳排放摘要', type: '月度摘要', period: '2024-11', emission: '1,810 tCO₂e', created: '2024-11-30 18:00', status: '已发布' },
   { name: '2024年度核查报告（草稿）', type: '年度核算报告', period: '2024年度', emission: '19,605 tCO₂e', created: '2024-12-28 10:00', status: '草稿' }
 ]
+
+function applyFilters() {
+  Object.assign(applied, { ...filters })
+}
+
+function resetFilters() {
+  Object.keys(filters).forEach((key) => { filters[key] = '' })
+  Object.keys(applied).forEach((key) => { applied[key] = '' })
+}
+
+const displayedReports = computed(() =>
+  reports.filter((row) => {
+    if (applied.name.trim() && !row.name.includes(applied.name.trim())) return false
+    if (applied.type && row.type !== applied.type) return false
+    if (applied.status && row.status !== applied.status) return false
+    return true
+  })
+)
 
 const templates = [
   { name: 'GB/T 32150 核算报告', desc: '国家标准格式年度温室气体排放报告' },

@@ -318,11 +318,11 @@ onBeforeUnmount(() => {
 
 .activity-record-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px 16px;
-  padding: 16px 20px;
-  background: #fafafa;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 14px 20px;
+  background: #f6f8fa;
+  border-bottom: 1px solid var(--yy-border);
   font-size: 13px;
 }
 
@@ -335,6 +335,12 @@ onBeforeUnmount(() => {
 .meta-label {
   font-size: 12px;
   color: var(--yy-text-placeholder);
+}
+
+@media (max-width: 768px) {
+  .activity-record-meta {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .activity-record-tabs {

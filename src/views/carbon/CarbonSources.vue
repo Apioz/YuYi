@@ -2,30 +2,50 @@
   <CarbonPageShell page-title="排放源管理">
     <div class="carbon-card flow-tip carbon-mb-12">
       <strong>业务说明：</strong>
-      在排放因子库维护物料/燃料因子后，在此定义需接入的排放源。数据采集方式决定监测频率：<strong>自动采集</strong>（接口实时）、<strong>系统对接</strong>（月度传输）、<strong>手动录入</strong>（手工导入记录）。能值由接口同步至排放源，在活动数据采集页设置监控后持续跟踪。
+      在排放因子库维护物料/燃料因子后，在此定义需接入的排放源，配置 GHG 范围、能源类型、物料、关联园区与地块，并绑定对应排放因子及数据采集方式，供活动数据采集与碳核算使用。
     </div>
 
     <div class="carbon-card">
       <div class="toolbar">
         <div class="toolbar-left">
           <span class="toolbar-title">排放源清单</span>
-          <span class="toolbar-sub">共 {{ filteredSources.length }} 个排放源</span>
+          <span class="toolbar-sub">共 {{ displayedSources.length }} 个排放源</span>
         </div>
-        <div class="toolbar-right">
-          <el-input v-model="keyword" placeholder="搜索排放源..." clearable style="width: 180px" />
-          <el-select v-model="filterScope" placeholder="全部范围" clearable style="width: 110px">
-            <el-option label="Scope 1" value="Scope 1" />
-            <el-option label="Scope 2" value="Scope 2" />
-            <el-option label="Scope 3" value="Scope 3" />
-          </el-select>
-          <el-select v-model="filterPark" placeholder="全部园区" clearable style="width: 130px">
-            <el-option v-for="p in parks" :key="p" :label="p" :value="p" />
-          </el-select>
-          <el-select v-model="filterStatus" placeholder="全部状态" clearable style="width: 110px">
-            <el-option label="启用" value="启用" />
-            <el-option label="停用" value="停用" />
-          </el-select>
-        </div>
+      </div>
+
+      <div class="filter-bar">
+        <el-input v-model="filters.name" placeholder="排放源名称" clearable style="width: 160px" />
+        <el-select v-model="filters.sourceType" placeholder="排放类型" clearable style="width: 120px">
+          <el-option label="固定燃烧" value="固定燃烧" />
+          <el-option label="移动燃烧" value="移动燃烧" />
+          <el-option label="过程排放" value="过程排放" />
+          <el-option label="外购电力" value="外购电力" />
+          <el-option label="外购热力" value="外购热力" />
+          <el-option label="其他间接" value="其他间接" />
+        </el-select>
+        <el-select v-model="filters.scope" placeholder="GHG范围" clearable style="width: 110px">
+          <el-option label="Scope 1" value="Scope 1" />
+          <el-option label="Scope 2" value="Scope 2" />
+          <el-option label="Scope 3" value="Scope 3" />
+        </el-select>
+        <el-select v-model="filters.energyType" placeholder="能源类型" clearable style="width: 120px">
+          <el-option v-for="t in energyTypes" :key="t" :label="t" :value="t" />
+        </el-select>
+        <el-input v-model="filters.material" placeholder="物料" clearable style="width: 120px" />
+        <el-select v-model="filters.park" placeholder="关联园区" clearable style="width: 130px">
+          <el-option v-for="p in parks" :key="p" :label="p" :value="p" />
+        </el-select>
+        <el-select v-model="filters.collection" placeholder="数据采集" clearable style="width: 120px">
+          <el-option label="自动采集" value="自动采集" />
+          <el-option label="系统对接" value="系统对接" />
+          <el-option label="手动录入" value="手动录入" />
+        </el-select>
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 100px">
+          <el-option label="启用" value="启用" />
+          <el-option label="停用" value="停用" />
+        </el-select>
+        <el-button type="primary" @click="applyFilters">搜索</el-button>
+        <el-button @click="resetFilters">清空</el-button>
       </div>
 
       <div class="list-toolbar-row">
@@ -57,10 +77,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="filteredSources.length === 0">
+          <tr v-if="displayedSources.length === 0">
             <td colspan="14" class="empty-cell">暂无排放源数据</td>
           </tr>
-          <tr v-for="row in filteredSources" :key="row.id">
+          <tr v-for="row in displayedSources" :key="row.id">
             <td>{{ row.name }}</td>
             <td>{{ row.sourceType }}</td>
             <td><CarbonScopeTag :scope="row.scope" /></td>
@@ -100,6 +120,8 @@
       v-model="dialogVisible"
       :title="formMode === 'create' ? '新增排放源' : '编辑排放源'"
       width="640px"
+      align-center
+      class="yy-dialog"
       destroy-on-close
       @closed="resetForm"
     >
@@ -203,7 +225,14 @@
     </el-dialog>
 
     <!-- 查看详情 -->
-    <el-dialog v-model="viewDialogVisible" title="排放源详情" width="680px" align-center destroy-on-close>
+    <el-dialog
+      v-model="viewDialogVisible"
+      title="排放源详情"
+      width="680px"
+      align-center
+      class="yy-dialog"
+      destroy-on-close
+    >
       <template v-if="viewSource">
         <div class="detail-section">
           <h4 class="detail-title">基本信息</h4>
@@ -244,30 +273,6 @@
           </div>
           <div v-else class="detail-empty">未绑定排放因子</div>
         </div>
-        <div v-if="viewLinkedActivity.length" class="detail-section">
-          <h4 class="detail-title">最新监测数据</h4>
-          <table class="carbon-table">
-            <thead>
-              <tr>
-                <th>记录周期</th>
-                <th>监测能值</th>
-                <th>碳值 (tCO₂e)</th>
-                <th>监控状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="act in viewLinkedActivity" :key="act.sourceId">
-                <td>{{ act.hasData ? act.recordPeriod : '—' }}</td>
-                <td>{{ act.hasData ? `${act.energyValue} ${act.unit}` : '—' }}</td>
-                <td>{{ act.hasData ? act.carbonValue : '—' }}</td>
-                <td>
-                  <CarbonThresholdTag v-if="act.hasData" :status="act.thresholdStatus" />
-                  <span v-else>未监控</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </template>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
@@ -275,7 +280,15 @@
     </el-dialog>
 
     <!-- 导入 -->
-    <el-dialog v-model="importDialogVisible" title="导入排放源" width="720px" destroy-on-close @closed="resetImport">
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入排放源"
+      width="720px"
+      align-center
+      class="yy-dialog"
+      destroy-on-close
+      @closed="resetImport"
+    >
       <div class="import-tip">
         批量导入排放源，请使用 CSV 格式。关联因子需填写因子库中已有的因子名称。
         <span class="carbon-link" @click="downloadTemplate">下载导入模板</span>
@@ -329,7 +342,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import CarbonPageShell from '@/components/carbon/CarbonPageShell.vue'
 import CarbonScopeTag from '@/components/carbon/CarbonScopeTag.vue'
 import CarbonQualityTag from '@/components/carbon/CarbonQualityTag.vue'
-import CarbonThresholdTag from '@/components/carbon/CarbonThresholdTag.vue'
 import { useCarbonBusiness } from '@/composables/useCarbonBusiness'
 import { defaultActivityUnit } from '@/composables/useCarbonCalculation'
 import {
@@ -345,7 +357,6 @@ const {
   energyTypes,
   allEmissionFactors,
   emissionSourceList,
-  activityDataWithThreshold,
   addEmissionSource,
   addEmissionSources,
   updateEmissionSource,
@@ -353,15 +364,31 @@ const {
   getFactorById,
   getExecutionStandard,
   getFactorModuleLabel,
-  getActivityDataBySourceId,
   isSourceMonitored,
   resolveFactorByName
 } = useCarbonBusiness()
 
-const keyword = ref('')
-const filterScope = ref('')
-const filterPark = ref('')
-const filterStatus = ref('')
+const filters = reactive({
+  name: '',
+  sourceType: '',
+  scope: '',
+  energyType: '',
+  material: '',
+  park: '',
+  collection: '',
+  status: ''
+})
+
+const applied = reactive({
+  name: '',
+  sourceType: '',
+  scope: '',
+  energyType: '',
+  material: '',
+  park: '',
+  collection: '',
+  status: ''
+})
 const dialogVisible = ref(false)
 const formMode = ref('create')
 const editingId = ref(null)
@@ -391,15 +418,32 @@ const defaultForm = () => ({
 
 const form = reactive(defaultForm())
 
-const filteredSources = computed(() =>
+const displayedSources = computed(() =>
   emissionSourceList.value.filter((row) => {
-    if (keyword.value.trim() && !row.name.includes(keyword.value.trim())) return false
-    if (filterScope.value && row.scope !== filterScope.value) return false
-    if (filterPark.value && row.park !== filterPark.value) return false
-    if (filterStatus.value && row.status !== filterStatus.value) return false
+    if (applied.name.trim() && !row.name.includes(applied.name.trim())) return false
+    if (applied.sourceType && row.sourceType !== applied.sourceType) return false
+    if (applied.scope && row.scope !== applied.scope) return false
+    if (applied.energyType && row.energyType !== applied.energyType) return false
+    if (applied.material.trim() && !row.material.includes(applied.material.trim())) return false
+    if (applied.park && row.park !== applied.park) return false
+    if (applied.collection && row.collection !== applied.collection) return false
+    if (applied.status && row.status !== applied.status) return false
     return true
   })
 )
+
+function applyFilters() {
+  Object.assign(applied, { ...filters })
+}
+
+function resetFilters() {
+  Object.keys(filters).forEach((key) => {
+    filters[key] = ''
+  })
+  Object.keys(applied).forEach((key) => {
+    applied[key] = ''
+  })
+}
 
 const viewFactor = computed(() =>
   viewSource.value ? getFactorById(viewSource.value.factorId) : null
@@ -408,11 +452,6 @@ const viewFactor = computed(() =>
 const viewExecutionStandard = computed(() =>
   viewSource.value ? getExecutionStandard(viewSource.value.factorId) : '—'
 )
-
-const viewLinkedActivity = computed(() => {
-  if (!viewSource.value) return []
-  return activityDataWithThreshold.value.filter((r) => r.sourceId === viewSource.value.id)
-})
 
 function openCreate() {
   formMode.value = 'create'
@@ -489,9 +528,8 @@ function submitForm() {
 
 async function handleDelete(row) {
   const linked = isSourceMonitored(row.id)
-  const recordCount = linked ? getActivityDataBySourceId(row.id).length : 0
   const msg = linked
-    ? `排放源「${row.name}」已设置监控并有 ${recordCount} 条数据记录，删除后监控与记录将不可用。确定删除？`
+    ? `排放源「${row.name}」已在活动数据中监控，删除后将不可用。确定删除？`
     : `确定删除排放源「${row.name}」？`
 
   try {
