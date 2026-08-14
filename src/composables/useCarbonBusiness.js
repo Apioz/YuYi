@@ -241,7 +241,7 @@ export function useCarbonBusiness() {
   const activityDataList = computed(() => activityDataWithThreshold.value)
 
   const collectableEmissionSources = computed(() =>
-    emissionSourceList.value.filter((s) => s.status === '启用' && !monitoredSourceIds.value.has(s.id))
+    emissionSourceList.value.filter((s) => s.status === '启用')
   )
 
   const activityStats = computed(() => {
@@ -343,6 +343,38 @@ export function useCarbonBusiness() {
 
   function addActivityRecordsBatch(records) {
     activityRecordList.value.push(...records)
+  }
+
+  function resolveRecordPeriod(source, syncedAt) {
+    const base = syncedAt ?? formatNow()
+    if (source?.collection === '自动采集') return base.slice(0, 10)
+    return base.slice(0, 7)
+  }
+
+  /** 采集录入 — 引用排放源接口能值，写入活动数据记录 */
+  function collectActivityFromSources(sourceIds) {
+    const now = formatNow()
+    let count = 0
+    for (const sourceId of sourceIds) {
+      const source = getEmissionSourceById(sourceId)
+      if (!source || source.numericEnergyValue == null) continue
+      if (!isSourceMonitored(sourceId)) {
+        monitoringConfigList.value.push({ sourceId, monitoredAt: now, status: '监控中' })
+      }
+      const syncedAt = source.energySyncedAt ?? now
+      activityRecordList.value.push({
+        id: createRecordId(),
+        sourceId,
+        recordPeriod: resolveRecordPeriod(source, syncedAt),
+        energyValue: source.energyValue ?? formatEnergyValue(source.numericEnergyValue),
+        numericValue: source.numericEnergyValue,
+        unit: source.activityUnit,
+        recordSource: '采集录入',
+        recordedAt: syncedAt
+      })
+      count++
+    }
+    return count
   }
 
   function getExecutionStandard(factorId) {
@@ -468,6 +500,7 @@ export function useCarbonBusiness() {
     deleteMonitoredActivity,
     addActivityRecord,
     addActivityRecordsBatch,
+    collectActivityFromSources,
     saveActivityThresholdRules,
     getThresholdRuleForSource,
     formatThresholdRange,

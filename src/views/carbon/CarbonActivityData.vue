@@ -17,7 +17,7 @@
 
     <div class="flow-tip carbon-mb-12">
       <strong>业务说明：</strong>
-      在本页维护各排放源<strong>最新监测数据</strong>。自动采集与系统对接数据由接口或第三方系统同步；<strong>手动录入</strong>类型请在「手动录入」或「导入数据记录」中按周期维护能值。
+      排放源在<strong>排放源管理</strong>中维护，其<strong>能值</strong>由接口同步至排放源自身数据。本页「<strong>采集录入</strong>」用于选择排放源并引用接口能值生成监测记录；<strong>手动录入</strong>类型也可通过「导入数据记录」按周期维护。
       列表展示各排放源<strong>最新一条</strong>记录，点击「数据记录」可<strong>追溯历史</strong>。阈值在「阈值设置」中统一配置。
     </div>
 
@@ -43,14 +43,14 @@
         </el-select>
         <el-button type="primary" @click="applyFilters">搜索</el-button>
         <el-button @click="resetFilters">清空</el-button>
-        <el-button @click="openThresholdSettings">阈值设置</el-button>
       </div>
 
       <div class="list-toolbar-row">
         <div class="list-add-bar">
-          <el-button type="primary" @click="openManualDialog">+ 手动录入</el-button>
+          <el-button type="primary" @click="openCollectDialog">+ 采集录入</el-button>
         </div>
         <div class="list-io-bar">
+          <el-button @click="openThresholdSettings">阈值设置</el-button>
           <el-button @click="openImport">导入数据记录</el-button>
         </div>
       </div>
@@ -132,56 +132,65 @@
       </template>
     </el-dialog>
 
-    <!-- 手动录入 -->
+    <!-- 采集录入 -->
     <el-dialog
-      v-model="manualDialogVisible"
-      title="手动录入"
-      width="640px"
+      v-model="collectDialogVisible"
+      title="采集录入"
+      width="760px"
       align-center
       class="yy-dialog"
       destroy-on-close
-      @closed="resetManualForm"
+      @closed="resetCollectForm"
     >
       <div class="import-tip carbon-mb-12">
-        选择已在排放源管理中配置为<strong>手动录入</strong>的排放源，填写记录周期与监测能值。
+        选择排放源管理中<strong>已启用</strong>的排放源，系统将自动引用该排放源<strong>接口同步的能值</strong>（不可手填），并预估碳值。
       </div>
       <el-form label-position="top">
         <el-form-item label="选择排放源" required>
           <el-select
-            v-model="manualSourceIds"
+            v-model="selectedCollectIds"
             multiple
             filterable
             collapse-tags
             style="width: 100%"
-            placeholder="选手动录入类型的排放源"
-            @change="syncManualEntries"
+            placeholder="选择要采集的排放源"
           >
             <el-option
-              v-for="s in manualEmissionSources"
+              v-for="s in collectableEmissionSources"
               :key="s.id"
-              :label="s.name"
+              :label="`${s.name}（${s.energyValue ?? '—'} ${s.activityUnit ?? ''}）`"
               :value="s.id"
             />
           </el-select>
         </el-form-item>
-        <div v-if="!manualEmissionSources.length" class="empty-hint">暂无可选手动录入排放源，请先在排放源管理中配置。</div>
-        <div v-for="sourceId in manualSourceIds" :key="sourceId" class="manual-entry-block">
-          <div class="manual-entry-title">{{ getSourceLabel(sourceId) }}</div>
-          <div class="form-row">
-            <el-form-item label="记录周期" required>
-              <el-input v-model="manualEntries[sourceId].recordPeriod" placeholder="如：2024-12 或 2024-12-31" />
-            </el-form-item>
-            <el-form-item label="能值" required>
-              <el-input v-model="manualEntries[sourceId].energyValue" placeholder="监测数值">
-                <template #append>{{ manualEntries[sourceId].unit }}</template>
-              </el-input>
-            </el-form-item>
-          </div>
+        <div v-if="!collectableEmissionSources.length" class="empty-hint">暂无可选排放源，请先在排放源管理中配置并启用。</div>
+        <div v-if="collectPreview.length" class="collect-preview">
+          <div class="preview-title">采集预览</div>
+          <table class="carbon-table">
+            <thead>
+              <tr>
+                <th>排放源</th>
+                <th>数据采集</th>
+                <th>接口能值</th>
+                <th>同步时间</th>
+                <th>预估碳值 (tCO₂e)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in collectPreview" :key="row.id">
+                <td>{{ row.name }}</td>
+                <td><CarbonQualityTag :label="row.collection" /></td>
+                <td>{{ row.energyDisplay }}</td>
+                <td>{{ row.syncedAt }}</td>
+                <td>{{ row.carbonPreview }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </el-form>
       <template #footer>
-        <el-button @click="manualDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitManual">保存</el-button>
+        <el-button @click="collectDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!selectedCollectIds.length" @click="submitCollect">确认采集</el-button>
       </template>
     </el-dialog>
 
@@ -262,25 +271,23 @@ import CarbonThresholdTag from '@/components/carbon/CarbonThresholdTag.vue'
 import CarbonQualityTag from '@/components/carbon/CarbonQualityTag.vue'
 import CarbonActivityRecordPanel from '@/components/carbon/CarbonActivityRecordPanel.vue'
 import { useCarbonBusiness } from '@/composables/useCarbonBusiness'
+import { calculateCarbonEmission } from '@/composables/useCarbonCalculation'
 import {
   createRecordId,
   parseRecordCsv,
-  downloadRecordTemplate,
-  formatEnergyValue,
-  parseActivityNumeric
+  downloadRecordTemplate
 } from '@/composables/useActivityData'
-import { formatNow } from '@/composables/useEmissionFactors'
 
 const {
   activityDataWithThreshold,
   activityStats,
-  emissionSourceList,
+  collectableEmissionSources,
   getEmissionSourceById,
+  getFactorById,
   getEnrichedRecordsBySourceId,
   isSourceMonitored,
   resolveSourceByName,
-  addMonitoring,
-  addActivityRecord,
+  collectActivityFromSources,
   deleteMonitoredActivity,
   addActivityRecordsBatch,
   saveActivityThresholdRules,
@@ -300,9 +307,8 @@ const applied = reactive({
   thresholdStatus: ''
 })
 
-const manualDialogVisible = ref(false)
-const manualSourceIds = ref([])
-const manualEntries = ref({})
+const collectDialogVisible = ref(false)
+const selectedCollectIds = ref([])
 const thresholdDialogVisible = ref(false)
 const thresholdFormRows = ref([])
 const historyDialogVisible = ref(false)
@@ -312,8 +318,26 @@ const importDialogVisible = ref(false)
 const importPreview = ref([])
 const importErrors = ref([])
 
-const manualEmissionSources = computed(() =>
-  emissionSourceList.value.filter((s) => s.status === '启用' && s.collection === '手动录入')
+const collectPreview = computed(() =>
+  selectedCollectIds.value
+    .map((id) => {
+      const source = getEmissionSourceById(id)
+      if (!source) return null
+      const factor = getFactorById(source.factorId)
+      const { carbonNumeric } = calculateCarbonEmission(source.numericEnergyValue, factor, source)
+      return {
+        id,
+        name: source.name,
+        collection: source.collection,
+        energyDisplay:
+          source.numericEnergyValue != null
+            ? `${source.energyValue ?? source.numericEnergyValue} ${source.activityUnit ?? ''}`
+            : '—',
+        syncedAt: source.energySyncedAt ?? '—',
+        carbonPreview: Number.isNaN(carbonNumeric) ? '—' : carbonNumeric.toFixed(2)
+      }
+    })
+    .filter(Boolean)
 )
 
 const displayedRows = computed(() =>
@@ -338,77 +362,31 @@ function resetFilters() {
   })
 }
 
-function getSourceLabel(sourceId) {
-  return getEmissionSourceById(sourceId)?.name ?? sourceId
+function openCollectDialog() {
+  selectedCollectIds.value = []
+  collectDialogVisible.value = true
 }
 
-function syncManualEntries(ids) {
-  const next = { ...manualEntries.value }
-  for (const id of ids) {
-    if (!next[id]) {
-      const source = getEmissionSourceById(id)
-      next[id] = {
-        recordPeriod: '',
-        energyValue: '',
-        unit: source?.activityUnit ?? '—'
-      }
-    }
-  }
-  for (const id of Object.keys(next)) {
-    if (!ids.includes(id)) delete next[id]
-  }
-  manualEntries.value = next
+function resetCollectForm() {
+  selectedCollectIds.value = []
 }
 
-function openManualDialog() {
-  manualSourceIds.value = []
-  manualEntries.value = {}
-  manualDialogVisible.value = true
-}
-
-function resetManualForm() {
-  manualSourceIds.value = []
-  manualEntries.value = {}
-}
-
-function submitManual() {
-  if (!manualSourceIds.value.length) {
+function submitCollect() {
+  if (!selectedCollectIds.value.length) {
     ElMessage.warning('请选择排放源')
     return
   }
-
-  const toMonitor = []
-  const records = []
-
-  for (const sourceId of manualSourceIds.value) {
-    const entry = manualEntries.value[sourceId]
-    const source = getEmissionSourceById(sourceId)
-    if (!entry?.recordPeriod?.trim()) {
-      ElMessage.warning(`请填写「${source?.name ?? sourceId}」的记录周期`)
-      return
-    }
-    const numericValue = parseActivityNumeric(entry.energyValue)
-    if (numericValue == null) {
-      ElMessage.warning(`请填写「${source?.name ?? sourceId}」的有效能值`)
-      return
-    }
-    if (!isSourceMonitored(sourceId)) toMonitor.push(sourceId)
-    records.push({
-      id: createRecordId(),
-      sourceId,
-      recordPeriod: entry.recordPeriod.trim(),
-      energyValue: formatEnergyValue(numericValue),
-      numericValue,
-      unit: source?.activityUnit ?? '—',
-      recordSource: '手工录入',
-      recordedAt: formatNow()
-    })
+  const missing = selectedCollectIds.value.filter((id) => {
+    const source = getEmissionSourceById(id)
+    return !source || source.numericEnergyValue == null
+  })
+  if (missing.length) {
+    ElMessage.warning('部分排放源暂无接口能值，无法采集')
+    return
   }
-
-  if (toMonitor.length) addMonitoring(toMonitor)
-  for (const record of records) addActivityRecord(record)
-  manualDialogVisible.value = false
-  ElMessage.success(`已录入 ${records.length} 条活动数据`)
+  const count = collectActivityFromSources(selectedCollectIds.value)
+  collectDialogVisible.value = false
+  ElMessage.success(`已采集 ${count} 条活动数据`)
 }
 
 function openThresholdSettings() {
@@ -595,22 +573,13 @@ function confirmImport() {
 .carbon-link--danger:hover { color: #ff7875; }
 .empty-cell { text-align: center; color: var(--yy-text-placeholder); padding: 24px !important; }
 .empty-hint { font-size: 13px; color: var(--yy-text-placeholder); }
-.manual-entry-block {
-  padding: 12px 14px;
-  margin-bottom: 12px;
-  background: #f6f8fa;
-  border: 1px solid var(--yy-border);
-  border-radius: 8px;
-}
-.manual-entry-block:last-child { margin-bottom: 0; }
-.manual-entry-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
 tr.is-alert td { background: #fff7f7; }
 .value-alert { color: #ff4d4f; font-weight: 600; }
 .import-tip { margin-bottom: 12px; font-size: 13px; color: var(--yy-text-secondary); }
 .upload-inner { padding: 12px 0; color: var(--yy-text-secondary); }
 .upload-sub { font-size: 12px; color: var(--yy-text-placeholder); margin-top: 4px; }
 .import-preview { margin-top: 16px; }
+.collect-preview { margin-top: 12px; }
 .preview-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 .import-errors { margin-top: 12px; }
 .import-error { color: #ff4d4f; font-size: 13px; line-height: 1.6; }
