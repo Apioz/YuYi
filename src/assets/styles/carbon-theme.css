@@ -1,0 +1,144 @@
+/* 碳管理模块 — 沿用禹翼平台浅色主题 */
+.carbon-page {
+  min-height: 100%;
+}
+
+.carbon-page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--yy-bg-white);
+  border: 1px solid var(--yy-border);
+  border-radius: 4px;
+}
+
+.carbon-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--yy-text-secondary);
+}
+
+.carbon-breadcrumb .is-current {
+  color: var(--yy-text-primary);
+  font-weight: 500;
+}
+
+.carbon-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.carbon-card {
+  background: var(--yy-bg-white);
+  border: 1px solid var(--yy-border);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.carbon-card + .carbon-card {
+  margin-top: 12px;
+}
+
+.carbon-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--yy-text-primary);
+  margin: 0 0 12px;
+}
+
+.carbon-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.carbon-table th,
+.carbon-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--yy-border);
+}
+
+.carbon-table th {
+  color: var(--yy-text-secondary);
+  font-weight: 500;
+  background: #fafafa;
+}
+
+.carbon-table td {
+  color: var(--yy-text-primary);
+}
+
+.carbon-table tbody tr:hover td {
+  background: #fafafa;
+}
+
+/* 列表操作区：左侧新增 + 右侧导入导出 */
+.list-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+/* 新增按钮 — 与第一列左对齐 */
+.list-add-bar {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+}
+
+/* 导入导出 — 筛选条件下，与列表右对齐 */
+.list-io-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+}
+
+.list-io-bar--standalone {
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.carbon-link {
+  color: var(--yy-primary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.carbon-link:hover {
+  color: var(--yy-primary-hover);
+}
+
+.carbon-link + .carbon-link {
+  margin-left: 12px;
+}
+
+.carbon-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.carbon-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.carbon-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.carbon-grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+.carbon-mb-12 { margin-bottom: 12px; }
+.carbon-mb-16 { margin-bottom: 16px; }
+
+@media (max-width: 1200px) {
+  .carbon-grid-5 { grid-template-columns: repeat(3, 1fr); }
+  .carbon-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .carbon-grid-5,
+  .carbon-grid-4,
+  .carbon-grid-3,
+  .carbon-grid-2 { grid-template-columns: 1fr; }
+}
