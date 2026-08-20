@@ -7,7 +7,6 @@ import CarbonSources from '@/views/carbon/CarbonSources.vue'
 import CarbonActivityData from '@/views/carbon/CarbonActivityData.vue'
 import CarbonFactorLibrary from '@/views/carbon/CarbonFactorLibrary.vue'
 import CarbonResults from '@/views/carbon/CarbonResults.vue'
-import CarbonAnalysis from '@/views/carbon/CarbonAnalysis.vue'
 import CarbonTargets from '@/views/carbon/CarbonTargets.vue'
 import CarbonReports from '@/views/carbon/CarbonReports.vue'
 
@@ -17,7 +16,6 @@ const carbonPageMap = {
   '/carbon/activity': CarbonActivityData,
   '/carbon/factors': CarbonFactorLibrary,
   '/carbon/results': CarbonResults,
-  '/carbon/analysis': CarbonAnalysis,
   '/carbon/targets': CarbonTargets,
   '/carbon/reports': CarbonReports
 }

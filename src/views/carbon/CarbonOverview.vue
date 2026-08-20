@@ -21,7 +21,10 @@
             {{ kpi.value }}<span class="overview-stat-unit">{{ kpi.unit }}</span>
           </div>
           <div class="overview-stat-label" :title="kpi.label">{{ kpi.label }}</div>
-          <div class="overview-stat-trend">{{ kpi.trend === '—' ? '' : kpi.trend }}</div>
+          <div class="overview-stat-trend">
+            <template v-if="kpi.ratio">占比 {{ kpi.ratio }}</template>
+            <template v-else-if="kpi.trend && kpi.trend !== '—'">{{ kpi.trend }}</template>
+          </div>
         </div>
       </div>
     </div>
@@ -107,22 +110,26 @@
               </ul>
             </div>
           </el-tab-pane>
-          <el-tab-pane label="数据质量等级分布" name="quality">
+          <el-tab-pane label="排放源类型分析" name="sourceType">
             <div class="donut-wrap">
               <div
                 class="donut-chart"
-                :style="{ background: `conic-gradient(${qualityDonutGradient})` }"
+                :style="{ background: `conic-gradient(${sourceTypeDonutGradient})` }"
               >
                 <div class="donut-center">
-                  <div class="donut-total">{{ qualityTotalCount }}</div>
-                  <div class="donut-unit">数据项</div>
+                  <div class="donut-total">{{ sourceTypeCenter.value }}</div>
+                  <div class="donut-unit">{{ sourceTypeCenter.unit }}</div>
                 </div>
               </div>
               <ul class="donut-legend">
-                <li v-for="item in qualityDistribution" :key="item.label">
+                <li v-for="item in sourceTypeAnalysis" :key="item.label">
                   <span class="legend-dot" :style="{ background: item.color }" />
-                  <span><CarbonQualityTag :label="item.label" /></span>
-                  <span class="legend-val">{{ item.count }} 项 ({{ item.percent }}%)</span>
+                  <span>{{ item.label }}</span>
+                  <span class="legend-val">
+                    {{ item.count }} 个
+                    <template v-if="item.emission > 0"> · {{ formatNumber(item.emission) }} tCO₂e</template>
+                    ({{ item.percent }}%)
+                  </span>
                 </li>
               </ul>
             </div>
@@ -245,7 +252,9 @@ import CarbonScopeTag from '@/components/carbon/CarbonScopeTag.vue'
 import CarbonThresholdTag from '@/components/carbon/CarbonThresholdTag.vue'
 import CarbonQualityTag from '@/components/carbon/CarbonQualityTag.vue'
 import { useCarbonBusiness } from '@/composables/useCarbonBusiness'
-import { qualityDetails, qualityDistribution } from '@/data/carbonMock'
+import { qualityDetails } from '@/data/carbonMock'
+
+const SOURCE_TYPE_COLORS = ['#1890ff', '#52c41a', '#faad14', '#722ed1', '#13c2c2', '#eb2f96', '#ff7875', '#597ef7']
 
 const router = useRouter()
 const { emissionSourceList, activityDataWithThreshold, thresholdAlerts, getOverviewData, formatNumber, parseNumeric, formatThresholdRange } = useCarbonBusiness()
@@ -262,7 +271,7 @@ const alertExpanded = ref(false)
 const ALERT_DEFAULT_COUNT = 5
 const ALERT_MAX_COUNT = 10
 
-const kpiIcons = ['T', '1', '2', '3', 'Q']
+const kpiIcons = ['T', '1', '2', '3', 'I']
 
 const displayedThresholdAlerts = computed(() => {
   const limit = alertExpanded.value ? ALERT_MAX_COUNT : ALERT_DEFAULT_COUNT
@@ -273,13 +282,57 @@ function toggleAlertExpand() {
   alertExpanded.value = !alertExpanded.value
 }
 
-const qualityTotalCount = computed(() =>
-  qualityDistribution.reduce((sum, item) => sum + item.count, 0)
-)
+const sourceTypeAnalysis = computed(() => {
+  const buckets = new Map()
 
-const qualityDonutGradient = computed(() => {
+  for (const source of emissionSourceList.value) {
+    const type = source.sourceType || '其他'
+    if (!buckets.has(type)) {
+      buckets.set(type, {
+        label: type,
+        count: 0,
+        emission: 0,
+        color: SOURCE_TYPE_COLORS[buckets.size % SOURCE_TYPE_COLORS.length]
+      })
+    }
+    const bucket = buckets.get(type)
+    bucket.count += 1
+    const act = activityDataWithThreshold.value.find((a) => a.sourceId === source.id)
+    if (act?.hasData) {
+      const n = act.carbonNumeric ?? parseNumeric(act.carbonValue)
+      if (!Number.isNaN(n)) bucket.emission += n
+    }
+  }
+
+  const items = [...buckets.values()]
+  const totalEmission = items.reduce((sum, item) => sum + item.emission, 0)
+  const useEmission = totalEmission > 0
+  const total = useEmission
+    ? totalEmission
+    : items.reduce((sum, item) => sum + item.count, 0)
+
+  return items
+    .map((item) => ({
+      ...item,
+      percent: total > 0
+        ? Number(((useEmission ? item.emission : item.count) / total * 100).toFixed(1))
+        : 0
+    }))
+    .sort((a, b) => (useEmission ? b.emission - a.emission : b.count - a.count))
+})
+
+const sourceTypeCenter = computed(() => {
+  const totalEmission = sourceTypeAnalysis.value.reduce((sum, item) => sum + item.emission, 0)
+  if (totalEmission > 0) {
+    return { value: formatNumber(totalEmission), unit: 'tCO₂e' }
+  }
+  const totalCount = sourceTypeAnalysis.value.reduce((sum, item) => sum + item.count, 0)
+  return { value: totalCount, unit: '排放源' }
+})
+
+const sourceTypeDonutGradient = computed(() => {
   let start = 0
-  return qualityDistribution
+  return sourceTypeAnalysis.value
     .map((item) => {
       const end = start + item.percent
       const segment = `${item.color} ${start}% ${end}%`

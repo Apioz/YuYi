@@ -12,6 +12,7 @@ import {
   monthlyEmissions2024,
   annualEmissionStructure,
   annualScopeRatios,
+  annualOutputValueWan,
   allEmissionFactors
 } from '@/data/carbonMock'
 import { formatNow } from '@/composables/useEmissionFactors'
@@ -108,12 +109,25 @@ export function buildOverviewKpis(total, periodLabel, compareTotal) {
     trend = `${sign} ${Math.abs(change).toFixed(1)}% 环比`
   }
 
+  const scope1Ratio = total > 0 ? `${((scope1 / total) * 100).toFixed(1)}%` : '0.0%'
+  const scope2Ratio = total > 0 ? `${((scope2 / total) * 100).toFixed(1)}%` : '0.0%'
+  const scope3Ratio = total > 0 ? `${((scope3 / total) * 100).toFixed(1)}%` : '0.0%'
+
+  const intensity = annualOutputValueWan > 0 ? total / annualOutputValueWan : 0
+  let intensityTrend = '—'
+  if (compareTotal != null && compareTotal > 0 && annualOutputValueWan > 0) {
+    const prevIntensity = compareTotal / annualOutputValueWan
+    const change = ((intensity - prevIntensity) / prevIntensity) * 100
+    const sign = change >= 0 ? '↑' : '↓'
+    intensityTrend = `${sign} ${Math.abs(change).toFixed(1)}% 环比`
+  }
+
   return [
     { label: `总排放量 (${periodLabel})`, value: formatNumber(total), unit: 'tCO₂e', trend, color: '#1dbf73' },
-    { label: 'Scope 1 直接排放', value: formatNumber(scope1), unit: 'tCO₂e', trend: '—', color: '#f5a623' },
-    { label: 'Scope 2 间接排放', value: formatNumber(scope2), unit: 'tCO₂e', trend: '—', color: '#4a9eff' },
-    { label: 'Scope 3 其他间接', value: formatNumber(scope3), unit: 'tCO₂e', trend: '—', color: '#a78bfa' },
-    { label: '数据完整度', value: '92.5', unit: '%', trend: '↑ 4.2%', color: '#facc15' }
+    { label: 'Scope 1 直接排放', value: formatNumber(scope1), unit: 'tCO₂e', ratio: scope1Ratio, trend: '—', color: '#f5a623' },
+    { label: 'Scope 2 间接排放', value: formatNumber(scope2), unit: 'tCO₂e', ratio: scope2Ratio, trend: '—', color: '#4a9eff' },
+    { label: 'Scope 3 其他间接', value: formatNumber(scope3), unit: 'tCO₂e', ratio: scope3Ratio, trend: '—', color: '#a78bfa' },
+    { label: '碳排放强度', value: intensity.toFixed(2), unit: 'tCO₂e/万元', trend: intensityTrend, color: '#facc15' }
   ]
 }
 

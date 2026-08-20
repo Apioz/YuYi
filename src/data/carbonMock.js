@@ -9,12 +9,15 @@ export const annualScopeRatios = {
   'Scope 3': 320 / 19605
 }
 
+/** 年度产值基准（万元），用于碳排放强度核算 */
+export const annualOutputValueWan = 19605 / 0.82
+
 export const overviewKpis = [
   { label: '总排放量 (tCO₂e)', value: '19,605', unit: 't', trend: '↑ 3.2% 同比', color: '#1dbf73' },
-  { label: 'Scope 1 直接排放', value: '18,520', unit: 't', trend: '↑ 2.8%', color: '#f5a623' },
-  { label: 'Scope 2 间接排放', value: '765', unit: 't', trend: '↓ 5.1%', color: '#4a9eff' },
-  { label: 'Scope 3 其他间接', value: '320', unit: 't', trend: '↑ 1.5%', color: '#a78bfa' },
-  { label: '数据完整度', value: '92.5', unit: '%', trend: '↑ 4.2%', color: '#facc15' }
+  { label: 'Scope 1 直接排放', value: '18,520', unit: 't', ratio: '94.5%', trend: '↑ 2.8%', color: '#f5a623' },
+  { label: 'Scope 2 间接排放', value: '765', unit: 't', ratio: '3.9%', trend: '↓ 5.1%', color: '#4a9eff' },
+  { label: 'Scope 3 其他间接', value: '320', unit: 't', ratio: '1.6%', trend: '↑ 1.5%', color: '#a78bfa' },
+  { label: '碳排放强度', value: '0.82', unit: 'tCO₂e/万元', trend: '↓ 2.1%', color: '#facc15' }
 ]
 
 export const emissionStructure = [
