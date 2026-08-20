@@ -129,7 +129,7 @@ export const initialEmissionSources = [
     factorId: 'if-003',
     factorName: '石灰生产过程 CO₂',
     method: '物料平衡法',
-    collection: '估算',
+    collection: '手动录入',
     activityUnit: 't',
     energyValue: '850',
     numericEnergyValue: 850,
@@ -215,15 +215,15 @@ export const activityStats = [
   { icon: '!', label: '数据缺口', count: 0, color: '#8b6914' }
 ]
 
-/** 活动数据统一阈值规则 — 按排放源配置，监控核算碳值 (tCO₂e) */
+/** 活动数据阈值规则 — 按排放源配置月度/年度核算碳值 (tCO₂e) 监控阈值 */
 export const initialActivityThresholdRules = [
-  { sourceId: 'es-001', thresholdMin: 8500, thresholdMax: 9500 },
-  { sourceId: 'es-002', thresholdMin: 8500, thresholdMax: 9500 },
-  { sourceId: 'es-003', thresholdMin: 350, thresholdMax: 430 },
-  { sourceId: 'es-004', thresholdMin: 100, thresholdMax: 150 },
-  { sourceId: 'es-006', thresholdMin: 650, thresholdMax: 750 },
-  { sourceId: 'es-007', thresholdMin: 30, thresholdMax: 50 },
-  { sourceId: 'es-008', thresholdMin: 15, thresholdMax: 20 }
+  { sourceId: 'es-001', monthlyThresholdMin: 28000, monthlyThresholdMax: 32000, annualThresholdMin: 95000, annualThresholdMax: 110000 },
+  { sourceId: 'es-002', monthlyThresholdMin: 17000, monthlyThresholdMax: 20000, annualThresholdMin: 85000, annualThresholdMax: 100000 },
+  { sourceId: 'es-003', monthlyThresholdMin: 700, monthlyThresholdMax: 900, annualThresholdMin: 3500, annualThresholdMax: 4500 },
+  { sourceId: 'es-004', monthlyThresholdMin: 120, monthlyThresholdMax: 160, annualThresholdMin: 1200, annualThresholdMax: 1800 },
+  { sourceId: 'es-006', monthlyThresholdMin: 1300, monthlyThresholdMax: 1600, annualThresholdMin: 7000, annualThresholdMax: 9000 },
+  { sourceId: 'es-007', monthlyThresholdMin: 35, monthlyThresholdMax: 45, annualThresholdMin: 380, annualThresholdMax: 480 },
+  { sourceId: 'es-008', monthlyThresholdMin: 18, monthlyThresholdMax: 22, annualThresholdMin: 200, annualThresholdMax: 260 }
 ]
 
 /** 监控配置 — 设置后持续监控 */
@@ -240,9 +240,7 @@ export const initialMonitoringConfig = [
 export const collectionFrequencyMap = {
   自动采集: { label: '实时接口监测', hint: '接口持续推送，自动生成数据记录' },
   系统对接: { label: '月度传输', hint: '每月一次批量传输数据' },
-  手动录入: { label: '手工导入', hint: '按周期手工导入数据记录' },
-  统计: { label: '统计汇总', hint: '按统计周期汇总录入' },
-  估算: { label: '估算', hint: '按估算周期记录' }
+  手动录入: { label: '手工导入', hint: '按周期手工导入数据记录' }
 }
 
 /** 活动数据历史记录 */
@@ -543,12 +541,26 @@ export const calculationDetails = [
 ]
 
 export const auditLogs = [
-  { time: '2024-12-31 23:59:15', content: '系统自动核算完成，总排放量 19,605 tCO₂e' },
-  { time: '2024-12-31 23:58:42', content: '数据采集完成，从能源管理平台同步 5 项活动数据' },
-  { time: '2024-12-31 23:58:10', content: '数据采集完成，从 ERP 系统同步 1 项（外购蒸汽）' },
-  { time: '2024-12-28 10:15:33', content: '用户「张三」手动录入员工通勤数据' },
-  { time: '2024-12-15 09:30:00', content: '排放因子库更新：华东区域电网因子' },
-  { time: '2024-12-01 08:00:00', content: '系统初始化，开始 2024 年度核算周期' }
+  { time: '2024-12-31 23:59:15', content: '系统自动核算完成，总排放量 19,605 tCO₂e', module: '碳核算', operator: '系统' },
+  { time: '2024-12-31 23:58:42', content: '数据采集完成，从能源管理平台同步 5 项活动数据', module: '数据采集', operator: '系统' },
+  { time: '2024-12-31 23:58:10', content: '数据采集完成，从 ERP 系统同步 1 项（外购蒸汽）', module: '数据采集', operator: '系统' },
+  { time: '2024-12-28 10:15:33', content: '用户「张三」手动录入员工通勤数据', module: '数据采集', operator: '张三' },
+  { time: '2024-12-15 09:30:00', content: '排放因子库更新：华东区域电网因子', module: '排放因子', operator: '李四' },
+  { time: '2024-12-01 08:00:00', content: '系统初始化，开始 2024 年度核算周期', module: '系统', operator: '系统' }
+]
+
+export const qualityDistribution = [
+  { label: '实测', count: 5, percent: 71, color: '#52c41a' },
+  { label: '统计', count: 1, percent: 14, color: '#faad14' },
+  { label: '估算', count: 1, percent: 14, color: '#ff4d4f' }
+]
+
+export const qualityDetails = [
+  { source: '1#回转窑', item: '电煤消耗量', quality: '实测', method: '自动采集', checked: '2024-12-31 23:59', status: '正常' },
+  { source: '2#回转窑', item: '电煤消耗量', quality: '实测', method: '自动采集', checked: '2024-12-31 23:59', status: '正常' },
+  { source: '外购蒸汽', item: '外购蒸汽量', quality: '统计', method: '系统对接', checked: '2024-12-30 18:00', status: '正常' },
+  { source: '厂内运输车队', item: '柴油消耗量', quality: '统计', method: '手动录入', checked: '2024-12-29 14:30', status: '正常' },
+  { source: '全体员工', item: '员工通勤里程', quality: '估算', method: '手动录入', checked: '2024-12-28 10:15', status: '待审核' }
 ]
 
 export const productionLines = ['烧成车间', '烘干车间', '物流部', '全厂', '生产车间', '行政']

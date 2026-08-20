@@ -172,22 +172,23 @@
         </div>
         <div class="form-row">
           <el-form-item label="关联排放因子" required>
-            <el-select v-model="form.factorId" style="width: 100%" filterable @change="onFactorChange">
-              <el-option
-                v-for="f in allEmissionFactors"
-                :key="f.id"
-                :label="`${f.name}（${getFactorModuleLabel(f.category)}）`"
-                :value="f.id"
-              />
-            </el-select>
+            <el-tree-select
+              v-model="form.factorId"
+              :data="factorTreeData"
+              filterable
+              :render-after-expand="false"
+              placeholder="请选择关联排放因子"
+              style="width: 100%"
+              node-key="value"
+              :props="factorTreeProps"
+              @change="onFactorChange"
+            />
           </el-form-item>
           <el-form-item label="数据采集">
             <el-select v-model="form.collection" style="width: 100%">
               <el-option label="自动采集" value="自动采集" />
               <el-option label="系统对接" value="系统对接" />
               <el-option label="手动录入" value="手动录入" />
-              <el-option label="统计" value="统计" />
-              <el-option label="估算" value="估算" />
             </el-select>
           </el-form-item>
         </div>
@@ -343,6 +344,7 @@ import CarbonPageShell from '@/components/carbon/CarbonPageShell.vue'
 import CarbonScopeTag from '@/components/carbon/CarbonScopeTag.vue'
 import CarbonQualityTag from '@/components/carbon/CarbonQualityTag.vue'
 import { useCarbonBusiness } from '@/composables/useCarbonBusiness'
+import { factorCategories } from '@/data/carbonMock'
 import { defaultActivityUnit } from '@/composables/useCarbonCalculation'
 import {
   createSourceId,
@@ -363,7 +365,6 @@ const {
   deleteEmissionSource,
   getFactorById,
   getExecutionStandard,
-  getFactorModuleLabel,
   isSourceMonitored,
   resolveFactorByName
 } = useCarbonBusiness()
@@ -417,6 +418,27 @@ const defaultForm = () => ({
 })
 
 const form = reactive(defaultForm())
+
+const factorTreeProps = {
+  value: 'value',
+  label: 'label',
+  children: 'children',
+  disabled: 'disabled'
+}
+
+const factorTreeData = computed(() =>
+  factorCategories.map((cat) => ({
+    value: `cat-${cat.id}`,
+    label: cat.label,
+    disabled: true,
+    children: allEmissionFactors
+      .filter((f) => f.category === cat.id)
+      .map((f) => ({
+        value: f.id,
+        label: `${f.name} · ${f.value} ${f.unit}`
+      }))
+  }))
+)
 
 const displayedSources = computed(() =>
   emissionSourceList.value.filter((row) => {

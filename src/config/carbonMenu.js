@@ -10,11 +10,10 @@ export const carbonMenuTree = [
       { id: 'carbon-sources', name: '排放源管理', path: '/carbon/sources' },
       { id: 'carbon-activity', name: '活动数据采集', path: '/carbon/activity' },
       { id: 'carbon-factors', name: '排放因子库', path: '/carbon/factors' },
-      { id: 'carbon-results', name: '核算结果', path: '/carbon/results' },
-      { id: 'carbon-quality', name: '数据质量', path: '/carbon/quality' },
       { id: 'carbon-analysis', name: '碳监测分析', path: '/carbon/analysis' },
-      { id: 'carbon-targets', name: '碳目标管理', path: '/carbon/targets' },
-      { id: 'carbon-reports', name: '碳报告中心', path: '/carbon/reports' }
+      { id: 'carbon-targets', name: '碳指标管理', path: '/carbon/targets' },
+      { id: 'carbon-reports', name: '碳报告中心', path: '/carbon/reports' },
+      { id: 'carbon-results', name: '操作日志', path: '/carbon/results' }
     ]
   }
 ]

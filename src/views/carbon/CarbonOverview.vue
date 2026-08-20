@@ -1,5 +1,31 @@
 <template>
   <CarbonPageShell page-title="碳核算总览" show-report-toolbar>
+    <div class="overview-stats carbon-mb-12">
+      <div
+        v-for="(kpi, index) in overviewData.kpis"
+        :key="kpi.label"
+        class="overview-stat-card"
+      >
+        <div
+          class="overview-stat-icon"
+          :style="{
+            background: `${kpi.color}12`,
+            color: kpi.color,
+            borderColor: `${kpi.color}30`
+          }"
+        >
+          {{ kpiIcons[index] }}
+        </div>
+        <div class="overview-stat-body">
+          <div class="overview-stat-value" :style="{ color: kpi.color }">
+            {{ kpi.value }}<span class="overview-stat-unit">{{ kpi.unit }}</span>
+          </div>
+          <div class="overview-stat-label" :title="kpi.label">{{ kpi.label }}</div>
+          <div class="overview-stat-trend">{{ kpi.trend === '—' ? '' : kpi.trend }}</div>
+        </div>
+      </div>
+    </div>
+
     <div class="carbon-card period-bar carbon-mb-12">
       <div class="period-left">
         <span class="period-label">统计周期</span>
@@ -22,71 +48,86 @@
         <h3 class="carbon-card-title">活动数据阈值告警</h3>
         <el-tag type="danger" size="small" effect="dark">{{ thresholdAlerts.length }} 条超限</el-tag>
       </div>
-      <p class="alert-desc">以下数据来自活动数据采集的阈值监控，超出设定范围将在总览中提示。</p>
-      <table class="carbon-table">
-        <thead>
-          <tr>
-            <th>数据项</th>
-            <th>排放源</th>
-            <th>监测能值</th>
-            <th>碳值 (tCO₂e)</th>
-            <th>阈值范围</th>
-            <th>监控状态</th>
-            <th>最近更新</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in thresholdAlerts" :key="row.id" class="alert-row">
-            <td>{{ row.item }}</td>
-            <td>{{ row.source }}</td>
-            <td>{{ row.energyValue }} {{ row.unit }}</td>
-            <td class="alert-value">{{ row.carbonValue }} tCO₂e</td>
-            <td>{{ formatThresholdRange(row) }}</td>
-            <td><CarbonThresholdTag :status="row.thresholdStatus" /></td>
-            <td>{{ row.updated }}</td>
-            <td><span class="carbon-link" @click="goActivity">查看明细</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="carbon-grid-5 carbon-mb-12">
-      <div
-        v-for="kpi in overviewData.kpis"
-        :key="kpi.label"
-        class="carbon-card kpi-card"
-        :style="{ borderBottom: `3px solid ${kpi.color}` }"
-      >
-        <div class="kpi-label">{{ kpi.label }}</div>
-        <div class="kpi-value">
-          {{ kpi.value }}<span class="kpi-unit">{{ kpi.unit }}</span>
-        </div>
-        <div class="kpi-trend">{{ kpi.trend }}</div>
+      <p class="alert-desc">以下告警来自活动数据采集的月度/年度阈值监控。月度/年度为周期内累计碳值，仅<strong>超过指标上限</strong>时在此提示。</p>
+      <div class="alert-table-wrap" :class="{ 'is-expanded': alertExpanded }">
+        <table class="carbon-table">
+          <thead>
+            <tr>
+              <th>阈值类型</th>
+              <th>监测周期</th>
+              <th>排放源</th>
+              <th>累计碳值 (tCO₂e)</th>
+              <th>阈值范围</th>
+              <th>监控状态</th>
+              <th>最近更新</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in displayedThresholdAlerts" :key="row.id" class="alert-row">
+              <td>{{ row.thresholdType }}</td>
+              <td>{{ row.monitorPeriod }}</td>
+              <td>{{ row.source }}</td>
+              <td class="alert-value">{{ row.carbonValue }}</td>
+              <td>{{ formatThresholdRange(row, row.thresholdType === '年度' ? 'annual' : 'monthly') }}</td>
+              <td><CarbonThresholdTag :status="row.thresholdStatus" /></td>
+              <td>{{ row.updated }}</td>
+              <td><span class="carbon-link" @click="goActivity">查看明细</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="thresholdAlerts.length > ALERT_DEFAULT_COUNT" class="alert-more-bar">
+        <span class="carbon-link" @click="toggleAlertExpand">
+          {{ alertExpanded ? '收起' : `更多（共 ${Math.min(thresholdAlerts.length, ALERT_MAX_COUNT)} 条）` }}
+        </span>
       </div>
     </div>
 
     <div class="carbon-grid-2 carbon-mb-12">
-      <div class="carbon-card">
-        <h3 class="carbon-card-title">排放结构（{{ overviewData.periodLabel }}）</h3>
-        <div class="donut-wrap">
-          <div
-            class="donut-chart"
-            :style="{ background: `conic-gradient(${overviewData.donutGradient})` }"
-          >
-            <div class="donut-center">
-              <div class="donut-total">{{ formatNumber(overviewData.total) }}</div>
-              <div class="donut-unit">tCO₂e</div>
+      <div class="carbon-card structure-card">
+        <el-tabs v-model="structureTab" class="structure-tabs">
+          <el-tab-pane :label="`排放结构（${overviewData.periodLabel}）`" name="emission">
+            <div class="donut-wrap">
+              <div
+                class="donut-chart"
+                :style="{ background: `conic-gradient(${overviewData.donutGradient})` }"
+              >
+                <div class="donut-center">
+                  <div class="donut-total">{{ formatNumber(overviewData.total) }}</div>
+                  <div class="donut-unit">tCO₂e</div>
+                </div>
+              </div>
+              <ul class="donut-legend">
+                <li v-for="item in overviewData.structure" :key="item.name">
+                  <span class="legend-dot" :style="{ background: item.color }" />
+                  <span>{{ item.name }}</span>
+                  <span class="legend-val">{{ item.value.toLocaleString() }} ({{ item.percent }})</span>
+                </li>
+              </ul>
             </div>
-          </div>
-          <ul class="donut-legend">
-            <li v-for="item in overviewData.structure" :key="item.name">
-              <span class="legend-dot" :style="{ background: item.color }" />
-              <span>{{ item.name }}</span>
-              <span class="legend-val">{{ item.value.toLocaleString() }} ({{ item.percent }})</span>
-            </li>
-          </ul>
-        </div>
+          </el-tab-pane>
+          <el-tab-pane label="数据质量等级分布" name="quality">
+            <div class="donut-wrap">
+              <div
+                class="donut-chart"
+                :style="{ background: `conic-gradient(${qualityDonutGradient})` }"
+              >
+                <div class="donut-center">
+                  <div class="donut-total">{{ qualityTotalCount }}</div>
+                  <div class="donut-unit">数据项</div>
+                </div>
+              </div>
+              <ul class="donut-legend">
+                <li v-for="item in qualityDistribution" :key="item.label">
+                  <span class="legend-dot" :style="{ background: item.color }" />
+                  <span><CarbonQualityTag :label="item.label" /></span>
+                  <span class="legend-val">{{ item.count }} 项 ({{ item.percent }}%)</span>
+                </li>
+              </ul>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </div>
 
       <div class="carbon-card">
@@ -107,6 +148,58 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="carbon-card carbon-mb-12">
+      <div class="table-head">
+        <h3 class="carbon-card-title">数据质量明细</h3>
+        <span class="table-sub">核算期：2024年度</span>
+      </div>
+      <div class="filter-bar">
+        <el-input v-model="qualityFilters.source" placeholder="排放源" clearable style="width: 140px" />
+        <el-select v-model="qualityFilters.quality" placeholder="质量等级" clearable style="width: 120px">
+          <el-option label="实测" value="实测" />
+          <el-option label="统计" value="统计" />
+          <el-option label="估算" value="估算" />
+        </el-select>
+        <el-select v-model="qualityFilters.method" placeholder="采集方式" clearable style="width: 120px">
+          <el-option label="自动采集" value="自动采集" />
+          <el-option label="系统对接" value="系统对接" />
+          <el-option label="手动录入" value="手动录入" />
+        </el-select>
+        <el-select v-model="qualityFilters.status" placeholder="状态" clearable style="width: 100px">
+          <el-option label="正常" value="正常" />
+          <el-option label="待审核" value="待审核" />
+        </el-select>
+        <el-button type="primary" @click="applyQualityFilters">搜索</el-button>
+        <el-button @click="resetQualityFilters">清空</el-button>
+      </div>
+      <table class="carbon-table">
+        <thead>
+          <tr>
+            <th>排放源</th>
+            <th>数据项</th>
+            <th>质量等级</th>
+            <th>采集方式</th>
+            <th>最近校验</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in displayedQualityDetails" :key="`${row.source}-${row.item}`">
+            <td>{{ row.source }}</td>
+            <td>{{ row.item }}</td>
+            <td><CarbonQualityTag :label="row.quality" /></td>
+            <td>{{ row.method }}</td>
+            <td>{{ row.checked }}</td>
+            <td>
+              <el-tag :type="row.status === '正常' ? 'success' : 'warning'" size="small" effect="light">
+                {{ row.status }}
+              </el-tag>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="carbon-card">
@@ -145,15 +238,17 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CarbonPageShell from '@/components/carbon/CarbonPageShell.vue'
 import CarbonScopeTag from '@/components/carbon/CarbonScopeTag.vue'
 import CarbonThresholdTag from '@/components/carbon/CarbonThresholdTag.vue'
+import CarbonQualityTag from '@/components/carbon/CarbonQualityTag.vue'
 import { useCarbonBusiness } from '@/composables/useCarbonBusiness'
+import { qualityDetails, qualityDistribution } from '@/data/carbonMock'
 
 const router = useRouter()
-const { emissionSourceList, activityDataWithThreshold, thresholdAlerts, getOverviewData, formatNumber, parseNumeric } = useCarbonBusiness()
+const { emissionSourceList, activityDataWithThreshold, thresholdAlerts, getOverviewData, formatNumber, parseNumeric, formatThresholdRange } = useCarbonBusiness()
 
 const currentMonth = 12
 const currentQuarter = 4
@@ -161,6 +256,60 @@ const currentQuarter = 4
 const periodType = ref('month')
 const selectedMonth = ref(currentMonth)
 const selectedQuarter = ref(currentQuarter)
+const structureTab = ref('emission')
+const alertExpanded = ref(false)
+
+const ALERT_DEFAULT_COUNT = 5
+const ALERT_MAX_COUNT = 10
+
+const kpiIcons = ['T', '1', '2', '3', 'Q']
+
+const displayedThresholdAlerts = computed(() => {
+  const limit = alertExpanded.value ? ALERT_MAX_COUNT : ALERT_DEFAULT_COUNT
+  return thresholdAlerts.value.slice(0, limit)
+})
+
+function toggleAlertExpand() {
+  alertExpanded.value = !alertExpanded.value
+}
+
+const qualityTotalCount = computed(() =>
+  qualityDistribution.reduce((sum, item) => sum + item.count, 0)
+)
+
+const qualityDonutGradient = computed(() => {
+  let start = 0
+  return qualityDistribution
+    .map((item) => {
+      const end = start + item.percent
+      const segment = `${item.color} ${start}% ${end}%`
+      start = end
+      return segment
+    })
+    .join(', ')
+})
+
+const qualityFilters = reactive({ source: '', quality: '', method: '', status: '' })
+const appliedQualityFilters = reactive({ source: '', quality: '', method: '', status: '' })
+
+function applyQualityFilters() {
+  Object.assign(appliedQualityFilters, { ...qualityFilters })
+}
+
+function resetQualityFilters() {
+  Object.keys(qualityFilters).forEach((key) => { qualityFilters[key] = '' })
+  Object.keys(appliedQualityFilters).forEach((key) => { appliedQualityFilters[key] = '' })
+}
+
+const displayedQualityDetails = computed(() =>
+  qualityDetails.filter((row) => {
+    if (appliedQualityFilters.source.trim() && !row.source.includes(appliedQualityFilters.source.trim())) return false
+    if (appliedQualityFilters.quality && row.quality !== appliedQualityFilters.quality) return false
+    if (appliedQualityFilters.method && row.method !== appliedQualityFilters.method) return false
+    if (appliedQualityFilters.status && row.status !== appliedQualityFilters.status) return false
+    return true
+  })
+)
 
 const overviewData = computed(() =>
   getOverviewData({
@@ -220,13 +369,6 @@ const topSources = computed(() => {
     }))
 })
 
-function formatThresholdRange(row) {
-  const parts = []
-  if (row.thresholdMin != null) parts.push(`≥ ${row.thresholdMin.toLocaleString()}`)
-  if (row.thresholdMax != null) parts.push(`≤ ${row.thresholdMax.toLocaleString()}`)
-  return parts.join('，') || '—'
-}
-
 function goActivity() {
   router.push('/carbon/activity')
 }
@@ -242,14 +384,106 @@ function goActivity() {
 .alert-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .alert-head .carbon-card-title { margin-bottom: 0; }
 .alert-desc { font-size: 13px; color: var(--yy-text-secondary); margin: 0 0 12px; }
+.alert-table-wrap.is-expanded {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--yy-border);
+  border-radius: 4px;
+}
+.alert-table-wrap.is-expanded .carbon-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fafafa;
+}
+.alert-more-bar {
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+}
 .alert-row td { background: #fff7f7; }
 .alert-value { color: #ff4d4f; font-weight: 600; }
 
-.kpi-card { padding: 14px 16px; }
-.kpi-label { font-size: 12px; color: var(--yy-text-secondary); margin-bottom: 8px; }
-.kpi-value { font-size: 24px; font-weight: 700; line-height: 1.2; color: var(--yy-text-primary); }
-.kpi-unit { font-size: 14px; font-weight: 400; margin-left: 4px; color: var(--yy-text-secondary); }
-.kpi-trend { font-size: 12px; color: var(--yy-text-placeholder); margin-top: 6px; }
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.overview-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 76px;
+  padding: 12px 14px;
+  background: var(--yy-bg-white);
+  border: 1px solid var(--yy-border);
+  border-radius: 4px;
+}
+
+.overview-stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid;
+}
+
+.overview-stat-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.overview-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overview-stat-unit {
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 3px;
+  opacity: 0.85;
+}
+
+.overview-stat-label {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--yy-text-secondary);
+  line-height: 1.35;
+  min-height: 33px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.overview-stat-trend {
+  min-height: 16px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--yy-text-placeholder);
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.structure-card { padding-top: 4px; }
+.structure-tabs :deep(.el-tabs__header) { margin-bottom: 12px; }
+.structure-tabs :deep(.el-tabs__item) { font-size: 13px; }
 
 .donut-wrap { display: flex; align-items: center; gap: 24px; min-height: 200px; }
 .donut-chart { width: 160px; height: 160px; border-radius: 50%; position: relative; flex-shrink: 0; }
@@ -283,4 +517,16 @@ function goActivity() {
 .table-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; gap: 12px; flex-wrap: wrap; }
 .table-head .carbon-card-title { margin-bottom: 0; }
 .table-sub { font-size: 12px; color: var(--yy-text-placeholder); }
+
+@media (max-width: 1200px) {
+  .overview-stats { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .overview-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .overview-stats { grid-template-columns: 1fr; }
+}
 </style>

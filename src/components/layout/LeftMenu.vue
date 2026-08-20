@@ -2,8 +2,9 @@
   <aside class="yy-left-menu" :class="{ 'is-collapsed': collapsed }">
     <el-scrollbar class="yy-menu-scrollbar">
       <el-menu
+        ref="menuRef"
         :key="menuRenderKey"
-        :default-active="activePath"
+        :default-active="menuDefaultActive"
         :default-openeds="openKeys"
         :collapse="collapsed"
         :collapse-transition="false"
@@ -13,6 +14,7 @@
         text-color="rgba(0, 0, 0, 0.65)"
         active-text-color="#FFFFFF"
         @select="handleSelect"
+        @open="handleMenuOpen"
       >
         <template v-for="root in appMenuTree" :key="root.id">
           <el-sub-menu :index="root.id" class="yy-root-submenu">
@@ -57,11 +59,12 @@
 </template>
 
 <script setup>
-import { computed, toRefs } from 'vue'
+import { computed, nextTick, ref, toRefs, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import MenuGridIcon from './MenuGridIcon.vue'
 import { appMenuTree, getMenuOpenKeys } from '@/config/menu'
+import { ENERGY_ROUTE_PREFIX } from '@/config/energyMenu'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false }
@@ -70,15 +73,35 @@ const { collapsed } = toRefs(props)
 
 const route = useRoute()
 const router = useRouter()
+const menuRef = ref(null)
 
 const activePath = computed(() => route.path)
 const openKeys = computed(() => getMenuOpenKeys(route.path))
 const menuRenderKey = computed(() => `${collapsed.value ? 'c' : 'e'}-${openKeys.value.join('|')}`)
 
+/** 能源路由不设 default-active，避免 Element Plus 初始化时自动展开能源管理菜单 */
+const menuDefaultActive = computed(() =>
+  activePath.value.startsWith(ENERGY_ROUTE_PREFIX) ? '' : activePath.value
+)
+
+watch(
+  () => route.path,
+  (path) => {
+    if (!path.startsWith(ENERGY_ROUTE_PREFIX)) return
+    nextTick(() => menuRef.value?.updateActiveIndex(path))
+  },
+  { immediate: true }
+)
+
 function handleSelect(index) {
   if (typeof index === 'string' && index.startsWith('/')) {
     router.push(index)
   }
+}
+
+function handleMenuOpen() {
+  if (!activePath.value.startsWith(ENERGY_ROUTE_PREFIX)) return
+  nextTick(() => menuRef.value?.updateActiveIndex(activePath.value))
 }
 </script>
 

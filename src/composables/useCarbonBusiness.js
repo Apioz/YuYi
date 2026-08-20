@@ -32,14 +32,14 @@ function formatNumber(num) {
   return num.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
-/** 评估单条活动数据是否超出阈值（基于核算碳值 tCO₂e） */
-export function evaluateThreshold(row, thresholdRule) {
+/** 评估活动数据是否超出阈值（基于核算碳值 tCO₂e） */
+export function evaluateThreshold(row, thresholdRule, { checkMin = true } = {}) {
   const numeric = row.carbonNumeric ?? parseNumeric(row.carbonValue)
   if (Number.isNaN(numeric)) return '正常'
   const min = thresholdRule?.thresholdMin
   const max = thresholdRule?.thresholdMax
   if (max != null && numeric > max) return '超上限'
-  if (min != null && numeric < min) return '超下限'
+  if (checkMin && min != null && numeric < min) return '超下限'
   return '正常'
 }
 
@@ -47,12 +47,22 @@ export function getThresholdRuleForSource(sourceId, rules) {
   return rules.find((r) => r.sourceId === sourceId) ?? null
 }
 
-export function formatThresholdRange(rule) {
+export function formatThresholdRange(rule, type = 'monthly') {
   if (!rule) return '—'
+  const minKey = type === 'annual' ? 'annualThresholdMin' : 'monthlyThresholdMin'
+  const maxKey = type === 'annual' ? 'annualThresholdMax' : 'monthlyThresholdMax'
   const parts = []
-  if (rule.thresholdMin != null) parts.push(`≥ ${rule.thresholdMin.toLocaleString()}`)
-  if (rule.thresholdMax != null) parts.push(`≤ ${rule.thresholdMax.toLocaleString()}`)
+  if (rule[minKey] != null) parts.push(`≥ ${rule[minKey].toLocaleString()}`)
+  if (rule[maxKey] != null) parts.push(`≤ ${rule[maxKey].toLocaleString()}`)
   return parts.join('，') || '—'
+}
+
+function getRecordMonthKey(recordPeriod) {
+  return String(recordPeriod ?? '').slice(0, 7)
+}
+
+function getRecordYearKey(recordPeriod) {
+  return String(recordPeriod ?? '').slice(0, 4)
 }
 
 /** 因子所属模块（执行标准） */
@@ -132,11 +142,39 @@ const emissionSourceList = ref(clone(initialEmissionSources))
 const monitoringConfigList = ref(clone(initialMonitoringConfig))
 const activityRecordList = ref(clone(initialActivityRecords))
 const activityThresholdRules = ref(clone(initialActivityThresholdRules))
+const indicatorSourceSyncAtMap = ref(
+  buildInitialIndicatorSyncAtMap(initialEmissionSources, initialActivityRecords)
+)
+
+function markIndicatorSourceSynced(sourceId, syncedAt) {
+  if (!sourceId) return
+  indicatorSourceSyncAtMap.value = {
+    ...indicatorSourceSyncAtMap.value,
+    [sourceId]: syncedAt || formatNow()
+  }
+}
+
+function removeIndicatorSourceSyncAt(sourceId) {
+  if (!indicatorSourceSyncAtMap.value[sourceId]) return
+  const next = { ...indicatorSourceSyncAtMap.value }
+  delete next[sourceId]
+  indicatorSourceSyncAtMap.value = next
+}
 
 function getLatestRecordForSource(records, sourceId) {
   const list = records.filter((r) => r.sourceId === sourceId)
   if (!list.length) return null
   return [...list].sort((a, b) => String(b.recordedAt).localeCompare(String(a.recordedAt)))[0]
+}
+
+/** 指标管理列表排序：仅在排放源同步时更新，不受活动数据监测变化影响 */
+function buildInitialIndicatorSyncAtMap(sources, records) {
+  const map = {}
+  for (const source of sources) {
+    const latest = getLatestRecordForSource(records, source.id)
+    map[source.id] = latest?.recordedAt ?? ''
+  }
+  return map
 }
 
 function recordToActivityRow(record, source) {
@@ -165,10 +203,32 @@ function buildThresholdSettingsRows(sources, rules) {
       sourceId: source.id,
       sourceName: source.name,
       scope: source.scope,
-      thresholdMin: existing?.thresholdMin ?? null,
-      thresholdMax: existing?.thresholdMax ?? null
+      sourceType: source.sourceType,
+      collection: source.collection,
+      sourceStatus: source.status,
+      monthlyThresholdMin: existing?.monthlyThresholdMin ?? null,
+      monthlyThresholdMax: existing?.monthlyThresholdMax ?? null,
+      annualThresholdMin: existing?.annualThresholdMin ?? null,
+      annualThresholdMax: existing?.annualThresholdMax ?? null
     }
   })
+}
+
+function normalizeThresholdRow(row) {
+  return {
+    sourceId: row.sourceId,
+    monthlyThresholdMin: row.monthlyThresholdMin === '' || row.monthlyThresholdMin == null ? null : Number(row.monthlyThresholdMin),
+    monthlyThresholdMax: row.monthlyThresholdMax === '' || row.monthlyThresholdMax == null ? null : Number(row.monthlyThresholdMax),
+    annualThresholdMin: row.annualThresholdMin === '' || row.annualThresholdMin == null ? null : Number(row.annualThresholdMin),
+    annualThresholdMax: row.annualThresholdMax === '' || row.annualThresholdMax == null ? null : Number(row.annualThresholdMax)
+  }
+}
+
+function rowHasThreshold(row) {
+  return row.monthlyThresholdMin != null ||
+    row.monthlyThresholdMax != null ||
+    row.annualThresholdMin != null ||
+    row.annualThresholdMax != null
 }
 
 export function useCarbonBusiness() {
@@ -178,6 +238,24 @@ export function useCarbonBusiness() {
 
   function getEmissionSourceById(id) {
     return emissionSourceList.value.find((s) => s.id === id)
+  }
+
+  function computeSourceCarbonTotal(sourceId, { month, year } = {}) {
+    const source = getEmissionSourceById(sourceId)
+    if (!source) return 0
+    const factor = getFactorById(source.factorId)
+    const records = activityRecordList.value.filter((record) => {
+      if (record.sourceId !== sourceId) return false
+      if (month && getRecordMonthKey(record.recordPeriod) !== month) return false
+      if (year && getRecordYearKey(record.recordPeriod) !== year) return false
+      return true
+    })
+    return records.reduce((sum, record) => {
+      const base = recordToActivityRow(record, source)
+      const enriched = enrichActivityRow(base, source, factor)
+      const carbon = enriched.carbonNumeric ?? parseNumeric(enriched.carbonValue)
+      return sum + (Number.isNaN(carbon) ? 0 : carbon)
+    }, 0)
   }
 
   const monitoredSourceIds = computed(() => new Set(monitoringConfigList.value.map((m) => m.sourceId)))
@@ -211,8 +289,14 @@ export function useCarbonBusiness() {
             calcFormula: '—',
             carbonNumeric: null,
             carbonValue: '—',
-            thresholdMin: null,
-            thresholdMax: null,
+            monthlyThresholdMin: null,
+            monthlyThresholdMax: null,
+            annualThresholdMin: null,
+            annualThresholdMax: null,
+            monthlyCarbonTotal: null,
+            annualCarbonTotal: null,
+            monthlyThresholdStatus: '正常',
+            annualThresholdStatus: '正常',
             thresholdStatus: '正常',
             isAlert: false,
             hasData: false
@@ -221,7 +305,29 @@ export function useCarbonBusiness() {
         const factor = getFactorById(base.factorId ?? source.factorId)
         const enriched = enrichActivityRow(base, source, factor)
         const thresholdRule = getThresholdRuleForSource(mon.sourceId, activityThresholdRules.value)
-        const thresholdStatus = evaluateThreshold(enriched, thresholdRule)
+        const monthKey = getRecordMonthKey(latest.recordPeriod)
+        const yearKey = getRecordYearKey(latest.recordPeriod)
+        const monthlyCarbonTotal = computeSourceCarbonTotal(mon.sourceId, { month: monthKey })
+        const annualCarbonTotal = computeSourceCarbonTotal(mon.sourceId, { year: yearKey })
+        const monthlyThresholdStatus = evaluateThreshold(
+          { carbonNumeric: monthlyCarbonTotal },
+          {
+            thresholdMin: thresholdRule?.monthlyThresholdMin,
+            thresholdMax: thresholdRule?.monthlyThresholdMax
+          },
+          { checkMin: false }
+        )
+        const annualThresholdStatus = evaluateThreshold(
+          { carbonNumeric: annualCarbonTotal },
+          {
+            thresholdMin: thresholdRule?.annualThresholdMin,
+            thresholdMax: thresholdRule?.annualThresholdMax
+          },
+          { checkMin: false }
+        )
+        const thresholdStatus = monthlyThresholdStatus !== '正常'
+          ? monthlyThresholdStatus
+          : (annualThresholdStatus !== '正常' ? annualThresholdStatus : '正常')
         return {
           ...enriched,
           collection: source.collection,
@@ -229,10 +335,20 @@ export function useCarbonBusiness() {
           monitoredAt: mon.monitoredAt,
           recordCount: records.length,
           hasData: true,
-          thresholdMin: thresholdRule?.thresholdMin ?? null,
-          thresholdMax: thresholdRule?.thresholdMax ?? null,
+          monitorMonth: monthKey,
+          monitorYear: yearKey,
+          monthlyCarbonTotal,
+          annualCarbonTotal,
+          monthlyCarbonValue: formatNumber(monthlyCarbonTotal),
+          annualCarbonValue: formatNumber(annualCarbonTotal),
+          monthlyThresholdMin: thresholdRule?.monthlyThresholdMin ?? null,
+          monthlyThresholdMax: thresholdRule?.monthlyThresholdMax ?? null,
+          annualThresholdMin: thresholdRule?.annualThresholdMin ?? null,
+          annualThresholdMax: thresholdRule?.annualThresholdMax ?? null,
+          monthlyThresholdStatus,
+          annualThresholdStatus,
           thresholdStatus,
-          isAlert: thresholdStatus !== '正常'
+          isAlert: monthlyThresholdStatus !== '正常' || annualThresholdStatus !== '正常'
         }
       })
       .filter(Boolean)
@@ -262,23 +378,65 @@ export function useCarbonBusiness() {
     buildThresholdSettingsRows(emissionSourceList.value, activityThresholdRules.value)
   )
 
-  const thresholdAlerts = computed(() =>
-    activityDataWithThreshold.value
-      .filter((row) => row.isAlert)
-      .map((row) => ({
-        id: row.id,
-        item: row.item,
-        source: row.source,
-        energyValue: row.energyValue,
-        unit: row.unit,
-        carbonValue: row.carbonValue,
-        thresholdMin: row.thresholdMin,
-        thresholdMax: row.thresholdMax,
-        thresholdStatus: row.thresholdStatus,
-        updated: row.updated,
-        level: row.thresholdStatus === '超上限' ? 'danger' : 'warning'
-      }))
+  const indicatorManagementRows = computed(() =>
+    thresholdSettingsRows.value
+      .map((row) => {
+        const activity = activityDataWithThreshold.value.find((item) => item.sourceId === row.sourceId)
+        const configured = rowHasThreshold(row)
+        const lastSyncedAt = indicatorSourceSyncAtMap.value[row.sourceId] ?? ''
+        return {
+          ...row,
+          lastSyncedAt,
+          monthlyCarbonValue: activity?.monthlyCarbonValue ?? '—',
+          annualCarbonValue: activity?.annualCarbonValue ?? '—',
+          monthlyCarbonNumeric: activity?.monthlyCarbonTotal ?? null,
+          annualCarbonNumeric: activity?.annualCarbonTotal ?? null,
+          monthlyThresholdStatus: activity?.monthlyThresholdStatus ?? '待监测',
+          annualThresholdStatus: activity?.annualThresholdStatus ?? '待监测',
+          isConfigured: configured,
+          isAlert: activity?.isAlert ?? false
+        }
+      })
+      .sort((a, b) => String(b.lastSyncedAt).localeCompare(String(a.lastSyncedAt)))
   )
+
+  const thresholdAlerts = computed(() => {
+    const alerts = []
+    for (const row of activityDataWithThreshold.value) {
+      if (!row.hasData) continue
+      if (row.monthlyThresholdStatus !== '正常') {
+        alerts.push({
+          id: `${row.id}-monthly`,
+          item: row.item,
+          source: row.source,
+          thresholdType: '月度',
+          monitorPeriod: row.monitorMonth,
+          carbonValue: row.monthlyCarbonValue,
+          monthlyThresholdMin: row.monthlyThresholdMin,
+          monthlyThresholdMax: row.monthlyThresholdMax,
+          thresholdStatus: row.monthlyThresholdStatus,
+          updated: row.updated,
+          level: row.monthlyThresholdStatus === '超上限' ? 'danger' : 'warning'
+        })
+      }
+      if (row.annualThresholdStatus !== '正常') {
+        alerts.push({
+          id: `${row.id}-annual`,
+          item: row.item,
+          source: row.source,
+          thresholdType: '年度',
+          monitorPeriod: row.monitorYear,
+          carbonValue: row.annualCarbonValue,
+          annualThresholdMin: row.annualThresholdMin,
+          annualThresholdMax: row.annualThresholdMax,
+          thresholdStatus: row.annualThresholdStatus,
+          updated: row.updated,
+          level: row.annualThresholdStatus === '超上限' ? 'danger' : 'warning'
+        })
+      }
+    }
+    return alerts.sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
+  })
 
   const thresholdAlertCount = computed(() => thresholdAlerts.value.length)
 
@@ -310,6 +468,7 @@ export function useCarbonBusiness() {
       if (source?.numericEnergyValue != null && source.collection === '自动采集') {
         const exists = activityRecordList.value.some((r) => r.sourceId === sourceId)
         if (!exists) {
+          const syncedAt = source.energySyncedAt ?? now
           activityRecordList.value.push({
             id: createRecordId(),
             sourceId,
@@ -318,8 +477,9 @@ export function useCarbonBusiness() {
             numericValue: source.numericEnergyValue,
             unit: source.activityUnit,
             recordSource: '接口同步',
-            recordedAt: source.energySyncedAt ?? now
+            recordedAt: syncedAt
           })
+          markIndicatorSourceSynced(sourceId, syncedAt)
         }
       }
     }
@@ -339,10 +499,16 @@ export function useCarbonBusiness() {
 
   function addActivityRecord(record) {
     activityRecordList.value.push(record)
+    markIndicatorSourceSynced(record.sourceId, record.recordedAt)
   }
 
   function addActivityRecordsBatch(records) {
     activityRecordList.value.push(...records)
+    const syncedAt = formatNow()
+    const sourceIds = [...new Set(records.map((r) => r.sourceId).filter(Boolean))]
+    for (const sourceId of sourceIds) {
+      markIndicatorSourceSynced(sourceId, syncedAt)
+    }
   }
 
   function resolveRecordPeriod(source, syncedAt) {
@@ -351,27 +517,38 @@ export function useCarbonBusiness() {
     return base.slice(0, 7)
   }
 
-  /** 采集录入 — 引用排放源接口能值，写入活动数据记录 */
-  function collectActivityFromSources(sourceIds) {
+  /** 采集录入 — 自动/对接类型引用接口能值；手动录入类型使用手工填写值 */
+  function collectActivityFromSources(entries) {
     const now = formatNow()
     let count = 0
-    for (const sourceId of sourceIds) {
-      const source = getEmissionSourceById(sourceId)
-      if (!source || source.numericEnergyValue == null) continue
-      if (!isSourceMonitored(sourceId)) {
-        monitoringConfigList.value.push({ sourceId, monitoredAt: now, status: '监控中' })
+    for (const entry of entries) {
+      const source = getEmissionSourceById(entry.sourceId)
+      if (!source) continue
+
+      const isManual = source.collection === '手动录入'
+      const numericValue = isManual ? entry.numericValue : source.numericEnergyValue
+      if (numericValue == null) continue
+
+      if (!isSourceMonitored(entry.sourceId)) {
+        monitoringConfigList.value.push({ sourceId: entry.sourceId, monitoredAt: now, status: '监控中' })
       }
-      const syncedAt = source.energySyncedAt ?? now
+
+      const syncedAt = isManual ? now : (source.energySyncedAt ?? now)
       activityRecordList.value.push({
         id: createRecordId(),
-        sourceId,
-        recordPeriod: resolveRecordPeriod(source, syncedAt),
-        energyValue: source.energyValue ?? formatEnergyValue(source.numericEnergyValue),
-        numericValue: source.numericEnergyValue,
+        sourceId: entry.sourceId,
+        recordPeriod: isManual
+          ? entry.recordPeriod
+          : resolveRecordPeriod(source, syncedAt),
+        energyValue: isManual
+          ? (entry.energyValue ?? formatEnergyValue(numericValue))
+          : (source.energyValue ?? formatEnergyValue(numericValue)),
+        numericValue,
         unit: source.activityUnit,
         recordSource: '采集录入',
         recordedAt: syncedAt
       })
+      markIndicatorSourceSynced(entry.sourceId, syncedAt)
       count++
     }
     return count
@@ -392,14 +569,21 @@ export function useCarbonBusiness() {
     return getEnrichedRecordsBySourceId(sourceId)
   }
 
-  function saveActivityThresholdRules(rows) {
-    activityThresholdRules.value = rows
-      .filter((r) => r.thresholdMin != null || r.thresholdMax != null)
-      .map((r) => ({
-        sourceId: r.sourceId,
-        thresholdMin: r.thresholdMin === '' || r.thresholdMin == null ? null : Number(r.thresholdMin),
-        thresholdMax: r.thresholdMax === '' || r.thresholdMax == null ? null : Number(r.thresholdMax)
-      }))
+  function saveActivityThresholdRules(rows, { merge = true } = {}) {
+    const nextMap = merge
+      ? new Map(activityThresholdRules.value.map((r) => [r.sourceId, { ...r }]))
+      : new Map()
+
+    for (const row of rows) {
+      const normalized = normalizeThresholdRow(row)
+      if (rowHasThreshold(normalized)) {
+        nextMap.set(normalized.sourceId, normalized)
+      } else if (merge) {
+        nextMap.delete(row.sourceId)
+      }
+    }
+
+    activityThresholdRules.value = [...nextMap.values()]
   }
 
   function getOverviewData({ periodType, month, quarter }) {
@@ -440,10 +624,15 @@ export function useCarbonBusiness() {
 
   function addEmissionSource(source) {
     emissionSourceList.value.push(source)
+    markIndicatorSourceSynced(source.id, formatNow())
   }
 
   function addEmissionSources(sources) {
+    const syncedAt = formatNow()
     emissionSourceList.value.push(...sources)
+    for (const source of sources) {
+      markIndicatorSourceSynced(source.id, syncedAt)
+    }
   }
 
   function updateEmissionSource(id, patch) {
@@ -456,6 +645,7 @@ export function useCarbonBusiness() {
   function deleteEmissionSource(id) {
     const idx = emissionSourceList.value.findIndex((s) => s.id === id)
     if (idx >= 0) emissionSourceList.value.splice(idx, 1)
+    removeIndicatorSourceSyncAt(id)
   }
 
   function resolveFactorByName(name) {
@@ -478,6 +668,7 @@ export function useCarbonBusiness() {
     activityDataWithThreshold,
     collectableEmissionSources,
     thresholdSettingsRows,
+    indicatorManagementRows,
     thresholdAlerts,
     thresholdAlertCount,
     activityStats,

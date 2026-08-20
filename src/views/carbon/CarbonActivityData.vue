@@ -17,8 +17,8 @@
 
     <div class="flow-tip carbon-mb-12">
       <strong>业务说明：</strong>
-      排放源在<strong>排放源管理</strong>中维护，其<strong>能值</strong>由接口同步至排放源自身数据。本页「<strong>采集录入</strong>」用于选择排放源并引用接口能值生成监测记录；<strong>手动录入</strong>类型也可通过「导入数据记录」按周期维护。
-      列表展示各排放源<strong>最新一条</strong>记录，点击「数据记录」可<strong>追溯历史</strong>。阈值在「阈值设置」中统一配置。
+      排放源在<strong>排放源管理</strong>中维护。<strong>自动采集 / 系统对接</strong>类型能值由接口同步；<strong>手动录入</strong>类型在「采集录入」中填写最新记录周期与能值，也可通过「导入数据记录」批量维护。
+      列表展示监测结果。月度/年度<strong>指标</strong>请在<strong>碳指标管理</strong>中配置。月度/年度当前值为周期内累计碳值，仅<strong>超过指标上限</strong>时判定为超出阈值。
     </div>
 
     <div class="carbon-card">
@@ -39,7 +39,6 @@
         <el-select v-model="filters.thresholdStatus" placeholder="监控状态" clearable style="width: 130px">
           <el-option label="正常" value="正常" />
           <el-option label="超上限" value="超上限" />
-          <el-option label="超下限" value="超下限" />
         </el-select>
         <el-button type="primary" @click="applyFilters">搜索</el-button>
         <el-button @click="resetFilters">清空</el-button>
@@ -50,7 +49,6 @@
           <el-button type="primary" @click="openCollectDialog">+ 采集录入</el-button>
         </div>
         <div class="list-io-bar">
-          <el-button @click="openThresholdSettings">阈值设置</el-button>
           <el-button @click="openImport">导入数据记录</el-button>
         </div>
       </div>
@@ -65,15 +63,19 @@
             <th>能值</th>
             <th>计算公式</th>
             <th>碳值 (tCO₂e)</th>
-            <th>阈值范围</th>
-            <th>监控状态</th>
+            <th>月度碳值</th>
+            <th>月度阈值</th>
+            <th>月度状态</th>
+            <th>年度碳值</th>
+            <th>年度阈值</th>
+            <th>年度状态</th>
             <th>最近更新</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="displayedRows.length === 0">
-            <td colspan="11" class="empty-cell">暂无活动数据</td>
+            <td colspan="15" class="empty-cell">暂无活动数据</td>
           </tr>
           <tr v-for="row in displayedRows" :key="row.sourceId" :class="{ 'is-alert': row.isAlert }">
             <td>{{ row.source }}</td>
@@ -83,9 +85,16 @@
             <td>{{ row.hasData ? `${row.energyValue} ${row.unit}` : '—' }}</td>
             <td class="formula-cell">{{ row.hasData ? row.calcFormula : '—' }}</td>
             <td :class="{ 'value-alert': row.isAlert }">{{ row.hasData ? row.carbonValue : '—' }}</td>
-            <td class="readonly-cell">{{ formatThresholdRange({ thresholdMin: row.thresholdMin, thresholdMax: row.thresholdMax }) }}</td>
+            <td>{{ row.hasData ? row.monthlyCarbonValue : '—' }}</td>
+            <td class="readonly-cell">{{ formatThresholdRange(row, 'monthly') }}</td>
             <td>
-              <CarbonThresholdTag v-if="row.hasData" :status="row.thresholdStatus" />
+              <CarbonThresholdTag v-if="row.hasData" :status="row.monthlyThresholdStatus" />
+              <span v-else class="text-muted">待数据</span>
+            </td>
+            <td>{{ row.hasData ? row.annualCarbonValue : '—' }}</td>
+            <td class="readonly-cell">{{ formatThresholdRange(row, 'annual') }}</td>
+            <td>
+              <CarbonThresholdTag v-if="row.hasData" :status="row.annualThresholdStatus" />
               <span v-else class="text-muted">待数据</span>
             </td>
             <td>{{ row.hasData ? row.updated : row.monitoredAt }}</td>
@@ -98,40 +107,6 @@
       </table>
     </div>
 
-    <!-- 阈值设置 -->
-    <el-dialog
-      v-model="thresholdDialogVisible"
-      title="活动数据阈值设置"
-      width="720px"
-      align-center
-      class="yy-dialog"
-      destroy-on-close
-    >
-      <div class="import-tip">按排放源统一配置核算碳值 (tCO₂e) 监控阈值。</div>
-      <table class="carbon-table">
-        <thead>
-          <tr>
-            <th>排放源</th>
-            <th>GHG范围</th>
-            <th>阈值下限 (tCO₂e)</th>
-            <th>阈值上限 (tCO₂e)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in thresholdFormRows" :key="row.sourceId">
-            <td>{{ row.sourceName }}</td>
-            <td>{{ row.scope }}</td>
-            <td><el-input v-model="row.thresholdMin" placeholder="下限" size="small" /></td>
-            <td><el-input v-model="row.thresholdMax" placeholder="上限" size="small" /></td>
-          </tr>
-        </tbody>
-      </table>
-      <template #footer>
-        <el-button @click="thresholdDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveThresholdSettings">保存</el-button>
-      </template>
-    </el-dialog>
-
     <!-- 采集录入 -->
     <el-dialog
       v-model="collectDialogVisible"
@@ -143,7 +118,7 @@
       @closed="resetCollectForm"
     >
       <div class="import-tip carbon-mb-12">
-        选择排放源管理中<strong>已启用</strong>的排放源，系统将自动引用该排放源<strong>接口同步的能值</strong>（不可手填），并预估碳值。
+        选择排放源管理中<strong>已启用</strong>的排放源。<strong>自动采集 / 系统对接</strong>类型将引用接口同步能值；<strong>手动录入</strong>类型需填写最新记录周期与能值。
       </div>
       <el-form label-position="top">
         <el-form-item label="选择排放源" required>
@@ -154,16 +129,30 @@
             collapse-tags
             style="width: 100%"
             placeholder="选择要采集的排放源"
+            @change="syncCollectEntries"
           >
             <el-option
               v-for="s in collectableEmissionSources"
               :key="s.id"
-              :label="`${s.name}（${s.energyValue ?? '—'} ${s.activityUnit ?? ''}）`"
+              :label="`${s.name}（${s.collection}${s.collection === '手动录入' ? '' : ` · ${s.energyValue ?? '—'} ${s.activityUnit ?? ''}`}）`"
               :value="s.id"
             />
           </el-select>
         </el-form-item>
         <div v-if="!collectableEmissionSources.length" class="empty-hint">暂无可选排放源，请先在排放源管理中配置并启用。</div>
+        <div v-for="sourceId in manualCollectIds" :key="sourceId" class="manual-entry-block">
+          <div class="manual-entry-title">{{ getSourceLabel(sourceId) }} · 手动录入</div>
+          <div class="form-row">
+            <el-form-item label="最新记录周期" required>
+              <el-input v-model="collectEntries[sourceId].recordPeriod" placeholder="如：2024-12 或 2024-12-31" />
+            </el-form-item>
+            <el-form-item label="能值" required>
+              <el-input v-model="collectEntries[sourceId].energyValue" placeholder="监测数值">
+                <template #append>{{ collectEntries[sourceId].unit }}</template>
+              </el-input>
+            </el-form-item>
+          </div>
+        </div>
         <div v-if="collectPreview.length" class="collect-preview">
           <div class="preview-title">采集预览</div>
           <table class="carbon-table">
@@ -171,7 +160,8 @@
               <tr>
                 <th>排放源</th>
                 <th>数据采集</th>
-                <th>接口能值</th>
+                <th>记录周期</th>
+                <th>能值</th>
                 <th>同步时间</th>
                 <th>预估碳值 (tCO₂e)</th>
               </tr>
@@ -180,6 +170,7 @@
               <tr v-for="row in collectPreview" :key="row.id">
                 <td>{{ row.name }}</td>
                 <td><CarbonQualityTag :label="row.collection" /></td>
+                <td>{{ row.recordPeriod }}</td>
                 <td>{{ row.energyDisplay }}</td>
                 <td>{{ row.syncedAt }}</td>
                 <td>{{ row.carbonPreview }}</td>
@@ -275,7 +266,9 @@ import { calculateCarbonEmission } from '@/composables/useCarbonCalculation'
 import {
   createRecordId,
   parseRecordCsv,
-  downloadRecordTemplate
+  downloadRecordTemplate,
+  formatEnergyValue,
+  parseActivityNumeric
 } from '@/composables/useActivityData'
 
 const {
@@ -290,8 +283,6 @@ const {
   collectActivityFromSources,
   deleteMonitoredActivity,
   addActivityRecordsBatch,
-  saveActivityThresholdRules,
-  thresholdSettingsRows,
   formatThresholdRange
 } = useCarbonBusiness()
 
@@ -309,8 +300,7 @@ const applied = reactive({
 
 const collectDialogVisible = ref(false)
 const selectedCollectIds = ref([])
-const thresholdDialogVisible = ref(false)
-const thresholdFormRows = ref([])
+const collectEntries = ref({})
 const historyDialogVisible = ref(false)
 const historySource = ref(null)
 const historyRecords = ref([])
@@ -318,22 +308,36 @@ const importDialogVisible = ref(false)
 const importPreview = ref([])
 const importErrors = ref([])
 
+const manualCollectIds = computed(() =>
+  selectedCollectIds.value.filter((id) => getEmissionSourceById(id)?.collection === '手动录入')
+)
+
 const collectPreview = computed(() =>
   selectedCollectIds.value
     .map((id) => {
       const source = getEmissionSourceById(id)
       if (!source) return null
+      const isManual = source.collection === '手动录入'
+      const entry = collectEntries.value[id]
+      let numericValue = source.numericEnergyValue
+      if (isManual) {
+        numericValue = parseActivityNumeric(entry?.energyValue)
+      }
       const factor = getFactorById(source.factorId)
-      const { carbonNumeric } = calculateCarbonEmission(source.numericEnergyValue, factor, source)
+      const { carbonNumeric } = calculateCarbonEmission(numericValue, factor, source)
       return {
         id,
         name: source.name,
         collection: source.collection,
-        energyDisplay:
-          source.numericEnergyValue != null
+        recordPeriod: isManual
+          ? (entry?.recordPeriod?.trim() || '待填写')
+          : resolveRecordPeriod(source, source.energySyncedAt),
+        energyDisplay: isManual
+          ? (numericValue != null ? `${formatEnergyValue(numericValue)} ${entry?.unit ?? source.activityUnit ?? ''}` : '待填写')
+          : (source.numericEnergyValue != null
             ? `${source.energyValue ?? source.numericEnergyValue} ${source.activityUnit ?? ''}`
-            : '—',
-        syncedAt: source.energySyncedAt ?? '—',
+            : '—'),
+        syncedAt: isManual ? '—' : (source.energySyncedAt ?? '—'),
         carbonPreview: Number.isNaN(carbonNumeric) ? '—' : carbonNumeric.toFixed(2)
       }
     })
@@ -344,7 +348,7 @@ const displayedRows = computed(() =>
   activityDataWithThreshold.value.filter((row) => {
     if (applied.source.trim() && !row.source.includes(applied.source.trim())) return false
     if (applied.collection && row.collection !== applied.collection) return false
-    if (applied.thresholdStatus && row.thresholdStatus !== applied.thresholdStatus) return false
+    if (applied.thresholdStatus && row.monthlyThresholdStatus !== applied.thresholdStatus && row.annualThresholdStatus !== applied.thresholdStatus) return false
     return true
   })
 )
@@ -362,13 +366,43 @@ function resetFilters() {
   })
 }
 
+function getSourceLabel(sourceId) {
+  return getEmissionSourceById(sourceId)?.name ?? sourceId
+}
+
+function resolveRecordPeriod(source, syncedAt) {
+  const base = syncedAt ?? ''
+  if (source?.collection === '自动采集') return base.slice(0, 10) || '—'
+  return base.slice(0, 7) || '—'
+}
+
+function syncCollectEntries(ids) {
+  const next = { ...collectEntries.value }
+  for (const id of ids) {
+    const source = getEmissionSourceById(id)
+    if (source?.collection === '手动录入' && !next[id]) {
+      next[id] = {
+        recordPeriod: '',
+        energyValue: '',
+        unit: source.activityUnit ?? '—'
+      }
+    }
+  }
+  for (const id of Object.keys(next)) {
+    if (!ids.includes(id)) delete next[id]
+  }
+  collectEntries.value = next
+}
+
 function openCollectDialog() {
   selectedCollectIds.value = []
+  collectEntries.value = {}
   collectDialogVisible.value = true
 }
 
 function resetCollectForm() {
   selectedCollectIds.value = []
+  collectEntries.value = {}
 }
 
 function submitCollect() {
@@ -376,40 +410,41 @@ function submitCollect() {
     ElMessage.warning('请选择排放源')
     return
   }
-  const missing = selectedCollectIds.value.filter((id) => {
-    const source = getEmissionSourceById(id)
-    return !source || source.numericEnergyValue == null
-  })
-  if (missing.length) {
-    ElMessage.warning('部分排放源暂无接口能值，无法采集')
-    return
-  }
-  const count = collectActivityFromSources(selectedCollectIds.value)
-  collectDialogVisible.value = false
-  ElMessage.success(`已采集 ${count} 条活动数据`)
-}
 
-function openThresholdSettings() {
-  thresholdFormRows.value = thresholdSettingsRows.value.map((row) => ({
-    ...row,
-    thresholdMin: row.thresholdMin ?? '',
-    thresholdMax: row.thresholdMax ?? ''
-  }))
-  thresholdDialogVisible.value = true
-}
+  const entries = []
+  for (const sourceId of selectedCollectIds.value) {
+    const source = getEmissionSourceById(sourceId)
+    if (!source) continue
 
-function saveThresholdSettings() {
-  for (const row of thresholdFormRows.value) {
-    const min = row.thresholdMin === '' || row.thresholdMin == null ? null : Number(row.thresholdMin)
-    const max = row.thresholdMax === '' || row.thresholdMax == null ? null : Number(row.thresholdMax)
-    if (min != null && max != null && min > max) {
-      ElMessage.warning(`排放源「${row.sourceName}」的阈值下限不能大于上限`)
-      return
+    if (source.collection === '手动录入') {
+      const entry = collectEntries.value[sourceId]
+      if (!entry?.recordPeriod?.trim()) {
+        ElMessage.warning(`请填写「${source.name}」的最新记录周期`)
+        return
+      }
+      const numericValue = parseActivityNumeric(entry.energyValue)
+      if (numericValue == null) {
+        ElMessage.warning(`请填写「${source.name}」的有效能值`)
+        return
+      }
+      entries.push({
+        sourceId,
+        recordPeriod: entry.recordPeriod.trim(),
+        numericValue,
+        energyValue: formatEnergyValue(numericValue)
+      })
+    } else {
+      if (source.numericEnergyValue == null) {
+        ElMessage.warning(`排放源「${source.name}」暂无接口能值，无法采集`)
+        return
+      }
+      entries.push({ sourceId })
     }
   }
-  saveActivityThresholdRules(thresholdFormRows.value)
-  thresholdDialogVisible.value = false
-  ElMessage.success('阈值设置已保存')
+
+  const count = collectActivityFromSources(entries)
+  collectDialogVisible.value = false
+  ElMessage.success(`已采集 ${count} 条活动数据`)
 }
 
 function openHistory(row) {
@@ -573,6 +608,16 @@ function confirmImport() {
 .carbon-link--danger:hover { color: #ff7875; }
 .empty-cell { text-align: center; color: var(--yy-text-placeholder); padding: 24px !important; }
 .empty-hint { font-size: 13px; color: var(--yy-text-placeholder); }
+.manual-entry-block {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #f6f8fa;
+  border: 1px solid var(--yy-border);
+  border-radius: 8px;
+}
+.manual-entry-block:last-child { margin-bottom: 0; }
+.manual-entry-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
 tr.is-alert td { background: #fff7f7; }
 .value-alert { color: #ff4d4f; font-weight: 600; }
 .import-tip { margin-bottom: 12px; font-size: 13px; color: var(--yy-text-secondary); }
